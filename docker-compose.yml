@@ -1,0 +1,15 @@
+services:
+  backend:
+    build:
+      context: ./apps/backend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./files:/app/files
+  frontend:
+    build:
+      context: ./apps/frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend

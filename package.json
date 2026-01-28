@@ -1,0 +1,16 @@
+{
+  "name": "workload-board",
+  "private": true,
+  "workspaces": [
+    "apps/backend",
+    "apps/frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm --workspace apps/backend run start:dev\" \"npm --workspace apps/frontend run dev\"",
+    "build": "npm --workspace apps/backend run build && npm --workspace apps/frontend run build",
+    "start": "npm --workspace apps/backend run start:prod"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -9,6 +9,7 @@ import {
   eachDay,
   inferAssignee,
   parseDateValue,
+  parseEstimateToSeconds,
   parseNumber,
   parsePeriod,
   quarterBounds,
@@ -45,11 +46,16 @@ const WorkloadSchema = z.object({
       name: z.string(),
       date: z.string()
     })
-  )
+  ),
+  taskTitles: z.record(z.string(), z.string().nullable()).optional(),
+  taskTypes: z.record(z.string(), z.string().nullable()).optional(),
+  taskEstimates: z.record(z.string(), z.number()).optional()
 });
 
 type RawIssue = {
   issueId: string;
+  title?: string | null;
+  type?: string | null;
   assignee: string;
   estimateSeconds: number;
   periodStart: Date;
@@ -92,8 +98,16 @@ export class ParseService {
       );
 
     const issueIdx = findHeader(["issueid", "issue", "id"]);
+    const titleIdx = findHeader(["заголовок", "title", "summary", "name"]);
+    const typeIdx = findHeader(["тип", "type", "issuetype", "issue type"]);
     const assigneeIdx = findHeader(["assignee", "owner", "исполнитель"]);
-    const estimateIdx = findHeader(["ownestimate", "estimate"]);
+    const estimateIdx = findHeader(["оценка", "ownestimate", "estimate"]);
+    const totalEstimateIdx = findHeader([
+      "общаяоценка(сподзадачами)",
+      "общаяоценка",
+      "timeoriginalestimate",
+      "originalestimate"
+    ]);
     const periodIdx = findHeader(["period"]);
     const statusIdx = findHeader(["status"]);
     const createdIdx = findHeader(["created"]);
@@ -116,14 +130,32 @@ export class ParseService {
           : String(rawIssue ?? "").trim();
       if (!issueId) continue;
 
+      const titleCell = titleIdx >= 0 ? row[titleIdx] : null;
+      const title =
+        typeof titleCell === "string"
+          ? titleCell.trim()
+          : titleCell
+            ? String(titleCell).trim()
+            : null;
+
+      const typeCell = typeIdx >= 0 ? row[typeIdx] : null;
+      const type =
+        typeof typeCell === "string"
+          ? typeCell.trim()
+          : typeCell
+            ? String(typeCell).trim()
+            : null;
+
       const assigneeCell =
         assigneeIdx >= 0
           ? row[assigneeIdx]
           : inferAssignee(String(row[pickIndex(assigneeIdx, 1)] ?? row.join(" ")));
       const assignee = inferAssignee(assigneeCell) ?? "unassigned";
 
-      const estimateSeconds =
-        parseNumber(row[pickIndex(estimateIdx, 2)]) ?? 0;
+      const estimateVal = parseEstimateToSeconds(row[pickIndex(estimateIdx, 2)]) ?? 0;
+      const totalEstimateVal =
+        totalEstimateIdx >= 0 ? parseEstimateToSeconds(row[totalEstimateIdx]) : null;
+      const estimateSeconds = Math.max(estimateVal, totalEstimateVal ?? 0);
       const periodRaw = row[pickIndex(periodIdx, 3)];
       const period = parsePeriod(
         typeof periodRaw === "string" ? periodRaw : String(periodRaw ?? "")
@@ -150,6 +182,8 @@ export class ParseService {
 
       issues.push({
         issueId,
+        title: title || null,
+        type: type || null,
         assignee,
         estimateSeconds,
         periodStart: startDate,
@@ -172,8 +206,26 @@ export class ParseService {
       Map<string, Map<string, { load: number; tasks: string[]; qa: number; sp: number }>>
     >();
     const releaseMap = new Map<string, string>();
+    const taskTitlesMap = new Map<string, string | null>();
+    const taskTypesMap = new Map<string, string | null>();
+    const taskEstimatesMap = new Map<string, number>();
 
     for (const issue of issues) {
+      // Сохраняем название задачи
+      if (!taskTitlesMap.has(issue.issueId)) {
+        taskTitlesMap.set(issue.issueId, issue.title || null);
+      }
+      // Сохраняем тип задачи
+      if (!taskTypesMap.has(issue.issueId)) {
+        taskTypesMap.set(issue.issueId, issue.type || null);
+      }
+      // Сохраняем оценку (в днях) — берём максимум из полей «оценка» и «общая оценка»
+      const estimateDays = issue.estimateSeconds / SecondsInDay;
+      const existing = taskEstimatesMap.get(issue.issueId);
+      if (existing === undefined || estimateDays > existing) {
+        taskEstimatesMap.set(issue.issueId, estimateDays);
+      }
+
       const days = eachDay(issue.periodStart, issue.periodEnd);
       if (!days.length) continue;
 
@@ -258,7 +310,11 @@ export class ParseService {
       date
     }));
 
-    return this.validateResponse({ assignees, releases });
+    const taskTitles = Object.fromEntries(taskTitlesMap);
+    const taskTypes = Object.fromEntries(taskTypesMap);
+    const taskEstimates = Object.fromEntries(taskEstimatesMap);
+
+    return this.validateResponse({ assignees, releases, taskTitles, taskTypes, taskEstimates });
   }
 
   private validateResponse(payload: unknown) {

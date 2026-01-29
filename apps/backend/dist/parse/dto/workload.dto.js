@@ -98,4 +98,16 @@ __decorate([
     (0, class_transformer_1.Type)(() => ReleaseDto),
     __metadata("design:type", Array)
 ], WorkloadResponseDto.prototype, "releases", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Object)
+], WorkloadResponseDto.prototype, "taskTitles", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Object)
+], WorkloadResponseDto.prototype, "taskTypes", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Object)
+], WorkloadResponseDto.prototype, "taskEstimates", void 0);
 //# sourceMappingURL=workload.dto.js.map

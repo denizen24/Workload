@@ -8,6 +8,7 @@ exports.quarterKey = quarterKey;
 exports.quarterBounds = quarterBounds;
 exports.inferAssignee = inferAssignee;
 exports.parseNumber = parseNumber;
+exports.parseEstimateToSeconds = parseEstimateToSeconds;
 const XLSX = require("xlsx");
 const MONTHS = [
     "january",
@@ -116,5 +117,31 @@ function parseNumber(value) {
         return Number.isNaN(numeric) ? null : numeric;
     }
     return null;
+}
+const SECONDS_PER_HOUR = 3600;
+const SECONDS_PER_DAY = 28800;
+const SECONDS_PER_WEEK = 5 * SECONDS_PER_DAY;
+function parseEstimateToSeconds(value) {
+    if (value === null || value === undefined)
+        return null;
+    if (typeof value === "number")
+        return Number.isNaN(value) ? null : value;
+    if (typeof value !== "string")
+        return null;
+    const s = value.trim();
+    if (!s)
+        return null;
+    const plain = parseNumber(s);
+    if (plain !== null)
+        return plain;
+    const nMatch = s.match(/(\d+(?:[.,]\d+)?)\s*н/);
+    const dMatch = s.match(/(\d+(?:[.,]\d+)?)\s*д/);
+    const hMatch = s.match(/(\d+(?:[.,]\d+)?)\s*ч/);
+    const weeks = nMatch ? Number(nMatch[1].replace(",", ".")) : 0;
+    const days = dMatch ? Number(dMatch[1].replace(",", ".")) : 0;
+    const hours = hMatch ? Number(hMatch[1].replace(",", ".")) : 0;
+    if (weeks === 0 && days === 0 && hours === 0)
+        return null;
+    return weeks * SECONDS_PER_WEEK + days * SECONDS_PER_DAY + hours * SECONDS_PER_HOUR;
 }
 //# sourceMappingURL=parse.utils.js.map

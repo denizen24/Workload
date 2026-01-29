@@ -23,7 +23,29 @@ export type ReleaseMarker = {
   date: string;
 };
 
+export type Sprint = {
+  id: string;
+  name: string;
+  start: string;
+  end: string;
+};
+
+export type CustomTaskType = "duty" | "vacation" | "sick";
+
+export type CustomTask = {
+  id: string;
+  assignee: string;
+  type: CustomTaskType;
+  start: string;
+  end: string;
+  durationDays: number;
+  title: string;
+};
+
 export type WorkloadResponse = {
   assignees: Assignee[];
   releases: ReleaseMarker[];
+  taskTitles?: Record<string, string | null>;
+  taskTypes?: Record<string, string | null>;
+  taskEstimates?: Record<string, number>;
 };

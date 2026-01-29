@@ -16,29 +16,55 @@ exports.FileController = void 0;
 const common_1 = require("@nestjs/common");
 const platform_express_1 = require("@nestjs/platform-express");
 const multer_1 = require("multer");
+const fs = require("fs");
+const path = require("path");
 const parse_service_1 = require("../parse/parse.service");
 let FileController = class FileController {
     constructor(parseService) {
         this.parseService = parseService;
+        this.uploadsDir = path.join(process.cwd(), "files");
+    }
+    onModuleInit() {
+        if (!fs.existsSync(this.uploadsDir)) {
+            fs.mkdirSync(this.uploadsDir, { recursive: true });
+        }
     }
     upload(file) {
         if (!file) {
             throw new common_1.BadRequestException("File is required");
         }
-        return this.parseService.parseWorkbook(file.buffer);
+        const filePath = path.join(this.uploadsDir, file.filename);
+        const buffer = fs.readFileSync(filePath);
+        return this.parseService.parseWorkbook(buffer);
     }
     workload(file) {
         if (!file) {
             throw new common_1.BadRequestException("File is required");
         }
-        return this.parseService.parseWorkbook(file.buffer);
+        const filePath = path.join(this.uploadsDir, file.filename);
+        const buffer = fs.readFileSync(filePath);
+        return this.parseService.parseWorkbook(buffer);
     }
 };
 exports.FileController = FileController;
 __decorate([
     (0, common_1.Post)("upload"),
     (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)("file", {
-        storage: (0, multer_1.memoryStorage)(),
+        storage: (0, multer_1.diskStorage)({
+            destination: (req, file, cb) => {
+                const dir = path.join(process.cwd(), "files");
+                if (!fs.existsSync(dir)) {
+                    fs.mkdirSync(dir, { recursive: true });
+                }
+                cb(null, dir);
+            },
+            filename: (req, file, cb) => {
+                const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+                const ext = path.extname(file.originalname);
+                const name = path.basename(file.originalname, ext);
+                cb(null, `${name}-${uniqueSuffix}${ext}`);
+            }
+        }),
         limits: {
             fileSize: 20 * 1024 * 1024
         }
@@ -51,7 +77,21 @@ __decorate([
 __decorate([
     (0, common_1.Post)("workload"),
     (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)("file", {
-        storage: (0, multer_1.memoryStorage)(),
+        storage: (0, multer_1.diskStorage)({
+            destination: (req, file, cb) => {
+                const dir = path.join(process.cwd(), "files");
+                if (!fs.existsSync(dir)) {
+                    fs.mkdirSync(dir, { recursive: true });
+                }
+                cb(null, dir);
+            },
+            filename: (req, file, cb) => {
+                const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+                const ext = path.extname(file.originalname);
+                const name = path.basename(file.originalname, ext);
+                cb(null, `${name}-${uniqueSuffix}${ext}`);
+            }
+        }),
         limits: {
             fileSize: 20 * 1024 * 1024
         }

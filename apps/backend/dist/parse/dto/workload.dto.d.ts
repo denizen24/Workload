@@ -22,4 +22,7 @@ export declare class ReleaseDto {
 export declare class WorkloadResponseDto {
     assignees: AssigneeDto[];
     releases: ReleaseDto[];
+    taskTitles?: Record<string, string | null>;
+    taskTypes?: Record<string, string | null>;
+    taskEstimates?: Record<string, number>;
 }

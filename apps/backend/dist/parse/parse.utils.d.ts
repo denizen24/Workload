@@ -12,3 +12,4 @@ export declare function quarterBounds(year: number, quarter: number): {
 };
 export declare function inferAssignee(value: unknown): string | null;
 export declare function parseNumber(value: unknown): number | null;
+export declare function parseEstimateToSeconds(value: unknown): number | null;

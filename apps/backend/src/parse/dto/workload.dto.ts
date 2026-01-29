@@ -72,4 +72,13 @@ export class WorkloadResponseDto {
   @ValidateNested({ each: true })
   @Type(() => ReleaseDto)
   releases!: ReleaseDto[];
+
+  @IsOptional()
+  taskTitles?: Record<string, string | null>;
+
+  @IsOptional()
+  taskTypes?: Record<string, string | null>;
+
+  @IsOptional()
+  taskEstimates?: Record<string, number>;
 }

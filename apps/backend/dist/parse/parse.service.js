@@ -34,7 +34,10 @@ const WorkloadSchema = zod_1.z.object({
     releases: zod_1.z.array(zod_1.z.object({
         name: zod_1.z.string(),
         date: zod_1.z.string()
-    }))
+    })),
+    taskTitles: zod_1.z.record(zod_1.z.string(), zod_1.z.string().nullable()).optional(),
+    taskTypes: zod_1.z.record(zod_1.z.string(), zod_1.z.string().nullable()).optional(),
+    taskEstimates: zod_1.z.record(zod_1.z.string(), zod_1.z.number()).optional()
 });
 let ParseService = class ParseService {
     parseWorkbook(buffer) {
@@ -52,8 +55,16 @@ let ParseService = class ParseService {
         const headers = rows[0].map((value) => String(value ?? "").trim());
         const findHeader = (options) => headers.findIndex((header) => options.some((opt) => header.toLowerCase().replace(/\s+/g, "").includes(opt)));
         const issueIdx = findHeader(["issueid", "issue", "id"]);
+        const titleIdx = findHeader(["заголовок", "title", "summary", "name"]);
+        const typeIdx = findHeader(["тип", "type", "issuetype", "issue type"]);
         const assigneeIdx = findHeader(["assignee", "owner", "исполнитель"]);
-        const estimateIdx = findHeader(["ownestimate", "estimate"]);
+        const estimateIdx = findHeader(["оценка", "ownestimate", "estimate"]);
+        const totalEstimateIdx = findHeader([
+            "общаяоценка(сподзадачами)",
+            "общаяоценка",
+            "timeoriginalestimate",
+            "originalestimate"
+        ]);
         const periodIdx = findHeader(["period"]);
         const statusIdx = findHeader(["status"]);
         const createdIdx = findHeader(["created"]);
@@ -71,11 +82,25 @@ let ParseService = class ParseService {
                 : String(rawIssue ?? "").trim();
             if (!issueId)
                 continue;
+            const titleCell = titleIdx >= 0 ? row[titleIdx] : null;
+            const title = typeof titleCell === "string"
+                ? titleCell.trim()
+                : titleCell
+                    ? String(titleCell).trim()
+                    : null;
+            const typeCell = typeIdx >= 0 ? row[typeIdx] : null;
+            const type = typeof typeCell === "string"
+                ? typeCell.trim()
+                : typeCell
+                    ? String(typeCell).trim()
+                    : null;
             const assigneeCell = assigneeIdx >= 0
                 ? row[assigneeIdx]
                 : (0, parse_utils_1.inferAssignee)(String(row[pickIndex(assigneeIdx, 1)] ?? row.join(" ")));
             const assignee = (0, parse_utils_1.inferAssignee)(assigneeCell) ?? "unassigned";
-            const estimateSeconds = (0, parse_utils_1.parseNumber)(row[pickIndex(estimateIdx, 2)]) ?? 0;
+            const estimateVal = (0, parse_utils_1.parseEstimateToSeconds)(row[pickIndex(estimateIdx, 2)]) ?? 0;
+            const totalEstimateVal = totalEstimateIdx >= 0 ? (0, parse_utils_1.parseEstimateToSeconds)(row[totalEstimateIdx]) : null;
+            const estimateSeconds = Math.max(estimateVal, totalEstimateVal ?? 0);
             const periodRaw = row[pickIndex(periodIdx, 3)];
             const period = (0, parse_utils_1.parsePeriod)(typeof periodRaw === "string" ? periodRaw : String(periodRaw ?? ""));
             const createdAt = (0, parse_utils_1.parseDateValue)(row[pickIndex(createdIdx, 5)]);
@@ -94,6 +119,8 @@ let ParseService = class ParseService {
             const spSeconds = (0, parse_utils_1.parseNumber)(row[pickIndex(spIdx, 9)]);
             issues.push({
                 issueId,
+                title: title || null,
+                type: type || null,
                 assignee,
                 estimateSeconds,
                 periodStart: startDate,
@@ -111,7 +138,21 @@ let ParseService = class ParseService {
     buildResponse(issues) {
         const assigneeMap = new Map();
         const releaseMap = new Map();
+        const taskTitlesMap = new Map();
+        const taskTypesMap = new Map();
+        const taskEstimatesMap = new Map();
         for (const issue of issues) {
+            if (!taskTitlesMap.has(issue.issueId)) {
+                taskTitlesMap.set(issue.issueId, issue.title || null);
+            }
+            if (!taskTypesMap.has(issue.issueId)) {
+                taskTypesMap.set(issue.issueId, issue.type || null);
+            }
+            const estimateDays = issue.estimateSeconds / SecondsInDay;
+            const existing = taskEstimatesMap.get(issue.issueId);
+            if (existing === undefined || estimateDays > existing) {
+                taskEstimatesMap.set(issue.issueId, estimateDays);
+            }
             const days = (0, parse_utils_1.eachDay)(issue.periodStart, issue.periodEnd);
             if (!days.length)
                 continue;
@@ -177,7 +218,10 @@ let ParseService = class ParseService {
             name,
             date
         }));
-        return this.validateResponse({ assignees, releases });
+        const taskTitles = Object.fromEntries(taskTitlesMap);
+        const taskTypes = Object.fromEntries(taskTypesMap);
+        const taskEstimates = Object.fromEntries(taskEstimatesMap);
+        return this.validateResponse({ assignees, releases, taskTitles, taskTypes, taskEstimates });
     }
     validateResponse(payload) {
         WorkloadSchema.parse(payload);

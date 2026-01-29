@@ -1,5 +1,5 @@
-import { useCallback } from "react";
-import { useDropzone } from "react-dropzone";
+import { useRef } from "react";
+import type { ChangeEvent } from "react";
 
 type UploadPanelProps = {
   onFileAccepted: (file: File) => void;
@@ -8,41 +8,34 @@ type UploadPanelProps = {
 };
 
 export function UploadPanel({ onFileAccepted, isLoading, error }: UploadPanelProps) {
-  const onDrop = useCallback(
-    (files: File[]) => {
-      if (files.length > 0) {
-        onFileAccepted(files[0]);
-      }
-    },
-    [onFileAccepted]
-  );
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
-        ".xlsx"
-      ]
-    },
-    multiple: false
-  });
+  const handleSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      onFileAccepted(file);
+      event.target.value = "";
+    }
+  };
 
   return (
-    <div
-      {...getRootProps()}
-      className={`rounded-2xl border-2 border-dashed p-8 text-center transition ${
-        isDragActive ? "border-purple-500 bg-purple-500/10" : "border-slate-400/50"
-      }`}
-    >
-      <input {...getInputProps()} />
-      <p className="text-lg font-semibold">
-        Перетащите XLSX сюда или нажмите для загрузки
-      </p>
-      <p className="mt-2 text-sm text-slate-500">
-        Лист должен называться "issues"
-      </p>
-      {isLoading && <p className="mt-4 text-sm text-purple-400">Парсим...</p>}
-      {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
+    <div className="flex flex-wrap items-center gap-3">
+      <input
+        ref={inputRef}
+        type="file"
+        accept=".xlsx"
+        onChange={handleSelect}
+        className="hidden"
+      />
+      <button
+        className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+        onClick={() => inputRef.current?.click()}
+        disabled={isLoading}
+      >
+        {isLoading ? "Загрузка..." : "Загрузить"}
+      </button>
+      <span className="text-xs text-slate-500">Лист: issues</span>
+      {error && <span className="text-xs text-red-400">{error}</span>}
     </div>
   );
 }

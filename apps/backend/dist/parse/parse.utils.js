@@ -125,7 +125,7 @@ function parseEstimateToSeconds(value) {
     if (value === null || value === undefined)
         return null;
     if (typeof value === "number")
-        return Number.isNaN(value) ? null : value;
+        return Number.isNaN(value) ? null : value * 60;
     if (typeof value !== "string")
         return null;
     const s = value.trim();
@@ -133,7 +133,7 @@ function parseEstimateToSeconds(value) {
         return null;
     const plain = parseNumber(s);
     if (plain !== null)
-        return plain;
+        return plain * 60;
     const nMatch = s.match(/(\d+(?:[.,]\d+)?)\s*н/);
     const dMatch = s.match(/(\d+(?:[.,]\d+)?)\s*д/);
     const hMatch = s.match(/(\d+(?:[.,]\d+)?)\s*ч/);

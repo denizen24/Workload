@@ -10,7 +10,6 @@ import {
   inferAssignee,
   parseDateValue,
   parseEstimateToSeconds,
-  parseNumber,
   parsePeriod,
   quarterBounds,
   quarterKey,
@@ -177,8 +176,8 @@ export class ParseService {
         typeof row[pickIndex(releaseIdx, 7)] === "string"
           ? (row[pickIndex(releaseIdx, 7)] as string)
           : null;
-      const qaSeconds = parseNumber(row[pickIndex(qaIdx, 8)]);
-      const spSeconds = parseNumber(row[pickIndex(spIdx, 9)]);
+      const qaSeconds = parseEstimateToSeconds(row[pickIndex(qaIdx, 8)]);
+      const spSeconds = parseEstimateToSeconds(row[pickIndex(spIdx, 9)]);
 
       issues.push({
         issueId,

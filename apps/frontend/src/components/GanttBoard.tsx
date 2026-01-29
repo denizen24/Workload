@@ -30,7 +30,7 @@ const STACK_GAP = 36; // Увеличено вдвое
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
 
-const loadColor = (load: number, taskType: string | null | undefined = null) => {
+const loadColor = (_load: number, taskType: string | null | undefined = null) => {
   const lower = taskType?.toLowerCase() ?? "";
 
   const isFeatureOrTech =
@@ -42,32 +42,36 @@ const loadColor = (load: number, taskType: string | null | undefined = null) => 
 
   const isBug = lower.includes("bug");
 
+  const isTask =
+    lower === "task" ||
+    lower === "tasc" ||
+    lower.includes("task") ||
+    lower.includes("tasc") ||
+    lower.includes("таск");
+
   const isDuty = lower === "duty" || lower.includes("дежурство");
 
   if (isDuty) {
     // Жёлтый для дежурства
-    if (load > 0.8) return "#ca8a04"; // yellow-600
-    if (load > 0.5) return "#eab308"; // yellow-500
     return "#facc15"; // yellow-400
   }
 
   if (isFeatureOrTech) {
-    // Немного темнее цвета для FEATURE и TECH TASK
-    if (load > 0.8) return "#dc2626";
-    if (load > 0.5) return "#ca8a04";
-    return "#16a34a";
+    // Немного темнее зелёного для FEATURE и TECH TASK
+    return "#22c55e"; // green-500
   }
 
   if (isBug) {
-    // Оранжевый для BUG (разная насыщенность по нагрузке)
-    if (load > 0.8) return "#c2410c"; // orange-700
-    if (load > 0.5) return "#ea580c"; // orange-600
+    // Оранжевый для BUG
     return "#f97316"; // orange-500
   }
 
+  if (isTask) {
+    // Светло-зелёный для TASK
+    return "#4ade80"; // green-400
+  }
+
   // Обычные цвета для TASK и остальных
-  if (load > 0.8) return "#f87171";
-  if (load > 0.5) return "#facc15";
   return "#4ade80";
 };
 

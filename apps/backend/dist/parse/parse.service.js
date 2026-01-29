@@ -115,8 +115,8 @@ let ParseService = class ParseService {
             const release = typeof row[pickIndex(releaseIdx, 7)] === "string"
                 ? row[pickIndex(releaseIdx, 7)]
                 : null;
-            const qaSeconds = (0, parse_utils_1.parseNumber)(row[pickIndex(qaIdx, 8)]);
-            const spSeconds = (0, parse_utils_1.parseNumber)(row[pickIndex(spIdx, 9)]);
+            const qaSeconds = (0, parse_utils_1.parseEstimateToSeconds)(row[pickIndex(qaIdx, 8)]);
+            const spSeconds = (0, parse_utils_1.parseEstimateToSeconds)(row[pickIndex(spIdx, 9)]);
             issues.push({
                 issueId,
                 title: title || null,

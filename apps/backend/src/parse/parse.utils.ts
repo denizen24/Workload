@@ -127,19 +127,18 @@ const SECONDS_PER_WEEK = 5 * SECONDS_PER_DAY; // 5 work days
 
 /**
  * Парсит оценку в секунды. Поддерживает:
- * - число (считаем секундами, как в Jira);
- * - строка-число "120", "1.5";
+ * - число/строка-число (считаем минутами, как в YouTrack);
  * - формат "3н", "5д", "3ч", "3н 2д 4ч" (недели, дни, часы).
  */
 export function parseEstimateToSeconds(value: unknown): number | null {
   if (value === null || value === undefined) return null;
-  if (typeof value === "number") return Number.isNaN(value) ? null : value;
+  if (typeof value === "number") return Number.isNaN(value) ? null : value * 60;
   if (typeof value !== "string") return null;
   const s = value.trim();
   if (!s) return null;
 
   const plain = parseNumber(s);
-  if (plain !== null) return plain;
+  if (plain !== null) return plain * 60;
 
   const nMatch = s.match(/(\d+(?:[.,]\d+)?)\s*н/);
   const dMatch = s.match(/(\d+(?:[.,]\d+)?)\s*д/);

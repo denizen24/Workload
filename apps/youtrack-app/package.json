@@ -12,15 +12,16 @@
   },
   "dependencies": {
     "@jetbrains/ring-ui-built": "^7.0.79",
-    "date-fns": "^3.6.0",
     "d3-selection": "^3.0.0",
     "d3-zoom": "^3.0.0",
+    "date-fns": "^3.6.0",
     "html2canvas": "^1.4.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@jetbrains/youtrack-apps-tools": "^0.0.2",
+    "@types/node": "^25.2.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@typescript-eslint/eslint-plugin": "^7.15.0",

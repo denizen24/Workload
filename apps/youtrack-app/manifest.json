@@ -2,15 +2,15 @@
   "name": "workload-calendar-app",
   "title": "Workload Calendar",
   "description": "Календарь загрузки задач по сотрудникам в YouTrack",
-  "$schema": "https://json.schemastore.org/youtrack-app.json",
+  "$schema": "./youtrack-app.json",
   "version": "1.0.0",
   "icon": "app-icon.svg",
   "iconDark": "app-icon.svg",
   "minYouTrackVersion": "2024.3.0",
   "vendor": {
     "name": "Workload Team",
-    "url": "https://example.com",
-    "email": "support@example.com"
+    "url": "https://denizen24.cc",
+    "email": "akakiy813@gmail.com"
   },
   "widgets": [
     {

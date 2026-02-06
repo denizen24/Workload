@@ -13,10 +13,6 @@ export default defineConfig({
           dest: "."
         },
         {
-          src: "*.*",
-          dest: "."
-        },
-        {
           src: "../public/*.*",
           dest: "."
         }

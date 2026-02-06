@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.app.json && vite build && youtrack-app validate dist",
+    "build": "tsc -p tsconfig.app.json && vite build && youtrack-app validate dist --schema youtrack-app.json",
+    "validate:local": "youtrack-app validate dist --schema youtrack-app.json",
     "lint": "eslint . --ext cjs,js,ts,tsx --max-warnings 0",
     "upload": "youtrack-app upload dist"
   },

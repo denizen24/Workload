@@ -13,7 +13,7 @@ export default defineConfig({
           dest: "."
         },
         {
-          src: "../public/*.*",
+          src: "../youtrack-app.json",
           dest: "."
         }
       ]
@@ -30,11 +30,11 @@ export default defineConfig({
   ],
   root: "./src",
   base: "",
-  publicDir: "public",
+  publicDir: "../public",
   build: {
     outDir: "../dist",
     emptyOutDir: true,
-    copyPublicDir: false,
+    copyPublicDir: true,
     target: ["es2022"],
     assetsDir: "widgets/assets",
     rollupOptions: {

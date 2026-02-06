@@ -28,11 +28,11 @@ export default defineConfig({
       structured: true
     })
   ],
-  root: "./src",
+  root: resolve(__dirname, "src"),
   base: "",
-  publicDir: "../public",
+  publicDir: resolve(__dirname, "public"),
   build: {
-    outDir: "../dist",
+    outDir: resolve(__dirname, "dist"),
     emptyOutDir: true,
     copyPublicDir: true,
     target: ["es2022"],

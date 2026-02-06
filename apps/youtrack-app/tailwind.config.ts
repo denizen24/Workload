@@ -1,7 +1,8 @@
+import { resolve } from "node:path";
 import type { Config } from "tailwindcss";
 
 export default {
-  content: ["./src/**/*.{ts,tsx,html}"],
+  content: [resolve(__dirname, "src/**/*.{ts,tsx,html}")],
   darkMode: "class",
   theme: {
     extend: {

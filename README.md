@@ -5,8 +5,11 @@ YouTrack App для визуализации нагрузки задач по с
 ## Структура
 
 - `apps/youtrack-app` — YouTrack App (React + Vite + Tailwind)
+- `apps/youtrack-app/src/widgets/calendar` — основной виджет календаря
 
 ## Dev-цикл
+
+Установка зависимостей выполняется в корне репозитория (workspaces).
 
 ```bash
 npm install
@@ -19,7 +22,7 @@ npm run dev
 npm run build
 ```
 
-После сборки артефакты появляются в `apps/youtrack-app/dist`.
+После сборки артефакты появляются в `apps/youtrack-app/dist`. Для загрузки в YouTrack архивируйте содержимое этой папки.
 
 ## Установка в YouTrack (администратор)
 
@@ -27,7 +30,7 @@ npm run build
 
 1. `npm install`
 2. `npm run build`
-3. Заархивировать содержимое `apps/youtrack-app/dist` в ZIP
+3. Заархивировать содержимое `apps/youtrack-app/dist` в ZIP (не папку целиком)
 4. Открыть `%YOUTRACK_URL%/admin/apps`
 5. **Add app → Upload ZIP**
 
@@ -63,3 +66,17 @@ npm run upload -- --host %YOUTRACK_URL% --token <perm_token>
 
 - Если встроенный `host.fetchYouTrack` недоступен, используйте fallback настройки `youtrackBaseUrl` и `youtrackToken`.
 - Все стили и визуализация адаптированы под темную/светлую тему YouTrack.
+
+## Локальная валидация манифеста
+
+Схема `youtrack-app.json` хранится локально и используется в сборке:
+
+```bash
+npm run build
+```
+
+Отдельная проверка:
+
+```bash
+npm --workspace apps/youtrack-app run validate:local
+```

@@ -2,3 +2,5 @@ node_modules
 files
 .cursor/
 .idea/
+apps/youtrack-app/dist/
+package-lock.json

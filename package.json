@@ -2,15 +2,12 @@
   "name": "workload-board",
   "private": true,
   "workspaces": [
-    "apps/backend",
-    "apps/frontend"
+    "apps/youtrack-app"
   ],
   "scripts": {
-    "dev": "concurrently \"npm --workspace apps/backend run start:dev\" \"npm --workspace apps/frontend run dev\"",
-    "build": "npm --workspace apps/backend run build && npm --workspace apps/frontend run build",
-    "start": "npm --workspace apps/backend run start:prod"
+    "dev": "npm --workspace apps/youtrack-app run dev",
+    "build": "npm --workspace apps/youtrack-app run build",
+    "upload": "npm --workspace apps/youtrack-app run upload"
   },
-  "devDependencies": {
-    "concurrently": "^8.2.2"
-  }
+  "devDependencies": {}
 }

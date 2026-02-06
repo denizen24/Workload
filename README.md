@@ -1,53 +1,65 @@
-# Workload Board
+# Workload Calendar YouTrack App
 
-Локальное Dockerized веб-приложение для визуализации workload разработчиков в формате Miro Gantt.
+YouTrack App для визуализации нагрузки задач по сотрудникам в виде календаря. Приложение работает напрямую через YouTrack REST API и встраивается как App Page (пункт главного меню).
 
 ## Структура
 
-- `apps/backend` — NestJS 10 API: загрузка и парсинг XLSX
-- `apps/frontend` — React 18 + Vite + Tailwind UI
-- `docker-compose.yml` — сборка и запуск контейнеров
+- `apps/youtrack-app` — YouTrack App (React + Vite + Tailwind)
 
-## Быстрый старт (Docker)
-
-```bash
-docker-compose up --build
-```
-
-Откройте `http://localhost` и загрузите пример `Zadachi-1.xlsx`.
-
-## Локальный запуск (без Docker)
+## Dev-цикл
 
 ```bash
 npm install
 npm run dev
 ```
 
-Backend доступен на `http://localhost:3000`, frontend на `http://localhost:5173`.
-
-## Формат XLSX
-
-Лист: `issues`.
-
-Ожидаемые колонки (по заголовкам или приближенно по содержимому):
-- `Issue ID` (например `UCR-846`)
-- `Assignee` (например `a.pushkin`)
-- `ownestimate` (в секундах)
-- `Period` (например `2026Q1 January-2`)
-- `Status`
-- `created`, `updated`
-- `Release`
-- `QA`, `SP` (доп. нагрузка)
-
-## API
-
-- `GET /api/health`
-- `POST /api/upload` (multipart `file`)
-- `POST /api/workload` (multipart `file`)
-
-## Тесты backend
+## Сборка
 
 ```bash
-cd apps/backend
-npm test
+npm run build
 ```
+
+После сборки артефакты появляются в `apps/youtrack-app/dist`.
+
+## Установка в YouTrack (администратор)
+
+### Вариант 1 — через ZIP
+
+1. `npm install`
+2. `npm run build`
+3. Заархивировать содержимое `apps/youtrack-app/dist` в ZIP
+4. Открыть `%YOUTRACK_URL%/admin/apps`
+5. **Add app → Upload ZIP**
+
+### Вариант 2 — через CLI
+
+```bash
+npm run upload -- --host %YOUTRACK_URL% --token <perm_token>
+```
+
+## Привязка к проектам
+
+1. Открыть `%YOUTRACK_URL%/admin/editProject/%PROJECT_ID%?tab=apps`
+2. Добавить **Workload Calendar** к нужным проектам
+
+## Настройки приложения
+
+Настройки доступны в админке приложения (schema в `apps/youtrack-app/src/widgets/calendar/settings.json`).
+
+Ключевые параметры:
+- `projects` — список проектов (ID или ключ)
+- `issueQuery` — дополнительный YouTrack query (например `State: {In Progress}`)
+- `startDateField`, `endDateField` — поля дат начала/окончания
+- `estimateField`, `qaField`, `spField` — поля оценки нагрузки
+- `releaseField`, `typeField`, `statusField`, `assigneeField` — дополнительные поля
+- `defaultHorizonDays` — горизонт календаря
+- `defaultSprints` — список спринтов по умолчанию
+
+## Обновление задач (Drag & Drop)
+
+Перетаскивание задач по горизонтали обновляет дату начала (и дату окончания, если задано поле) через REST API. В случае ошибки изменение откатывается.
+
+## Примечания
+
+- Если встроенный `host.fetchYouTrack` недоступен, используйте fallback настройки `youtrackBaseUrl` и `youtrackToken`.
+- Все стили и визуализация адаптированы под темную/светлую тему YouTrack.

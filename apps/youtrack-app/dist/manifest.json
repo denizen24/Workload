@@ -1,0 +1,30 @@
+{
+  "name": "workload-calendar-app",
+  "title": "Workload Calendar",
+  "description": "Календарь загрузки задач по сотрудникам в YouTrack",
+  "$schema": "./youtrack-app.json",
+  "version": "1.0.0",
+  "icon": "app-icon.svg",
+  "iconDark": "app-icon.svg",
+  "minYouTrackVersion": "2024.3.0",
+  "vendor": {
+    "name": "Workload Team",
+    "url": "https://denizen24.cc",
+    "email": "akakiy813@gmail.com"
+  },
+  "widgets": [
+    {
+      "key": "workload-calendar",
+      "name": "Workload Calendar",
+      "indexPath": "widgets/calendar/index.html",
+      "extensionPoint": "MAIN_MENU_ITEM",
+      "description": "Визуализация нагрузки команды в формате календаря",
+      "iconPath": "widgets/calendar/widget-icon.svg",
+      "settingsSchemaPath": "widgets/calendar/settings.json",
+      "permissions": [
+        "READ_ISSUE",
+        "UPDATE_ISSUE"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "title": "Workload Calendar Settings",
+  "type": "object",
+  "properties": {
+    "mockDataset": {
+      "type": "string",
+      "title": "Набор mock-данных",
+      "default": "default"
+    },
+    "defaultSprints": {
+      "type": "string",
+      "title": "Спринты по умолчанию (JSON)",
+      "default": ""
+    },
+    "defaultHolidays": {
+      "type": "string",
+      "title": "Праздники по умолчанию (через запятую)",
+      "default": ""
+    },
+    "defaultReleaseDates": {
+      "type": "string",
+      "title": "Даты релизов по умолчанию (через запятую)",
+      "default": ""
+    }
+  }
+}

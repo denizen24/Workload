@@ -1,53 +1,60 @@
-# Workload Board
+# Workload Calendar for YouTrack
 
-Локальное Dockerized веб-приложение для визуализации workload разработчиков в формате Miro Gantt.
+Ветка переведена на формат YouTrack App: календарь нагрузки работает как виджет в YouTrack (`MAIN_MENU_ITEM`) и на текущем этапе использует mock-данные без backend.
 
-## Структура
+## Основные директории
 
-- `apps/backend` — NestJS 10 API: загрузка и парсинг XLSX
-- `apps/frontend` — React 18 + Vite + Tailwind UI
-- `docker-compose.yml` — сборка и запуск контейнеров
+- `apps/youtrack-app` — YouTrack приложение (React + Vite + Tailwind)
+- `apps/youtrack-app/src/widgets/calendar` — код виджета
+- `apps/backend` и `apps/frontend` — legacy-части исходного проекта (не используются для сборки виджета)
 
-## Быстрый старт (Docker)
+## Запуск и сборка виджета
 
-```bash
-docker-compose up --build
-```
-
-Откройте `http://localhost` и загрузите пример `Zadachi-1.xlsx`.
-
-## Локальный запуск (без Docker)
+Установка зависимостей:
 
 ```bash
 npm install
+```
+
+Локальная разработка виджета:
+
+```bash
 npm run dev
 ```
 
-Backend доступен на `http://localhost:3000`, frontend на `http://localhost:5173`.
-
-## Формат XLSX
-
-Лист: `issues`.
-
-Ожидаемые колонки (по заголовкам или приближенно по содержимому):
-- `Issue ID` (например `UCR-846`)
-- `Assignee` (например `a.pushkin`)
-- `ownestimate` (в секундах)
-- `Period` (например `2026Q1 January-2`)
-- `Status`
-- `created`, `updated`
-- `Release`
-- `QA`, `SP` (доп. нагрузка)
-
-## API
-
-- `GET /api/health`
-- `POST /api/upload` (multipart `file`)
-- `POST /api/workload` (multipart `file`)
-
-## Тесты backend
+Сборка и валидация пакета:
 
 ```bash
-cd apps/backend
-npm test
+npm run build
 ```
+
+Создание ZIP-архива для загрузки в YouTrack:
+
+```bash
+npm run zip
+```
+
+Архив создается в `apps/youtrack-app` с именем `workload-app-HHmmss.zip`.
+
+## Установка в YouTrack
+
+1. Откройте `Administration > Apps`.
+2. Нажмите `Add app`.
+3. Загрузите собранный ZIP из `apps/youtrack-app`.
+
+## Настройки виджета
+
+Схема настроек находится в `apps/youtrack-app/src/widgets/calendar/settings.json`:
+
+- `mockDataset` — выбор набора mock-данных (`default` или `compact`);
+- `defaultSprints` — JSON-массив спринтов по умолчанию;
+- `defaultHolidays` — список праздничных дней через запятую;
+- `defaultReleaseDates` — список дат релизов через запятую.
+
+## Legacy-команды
+
+Для старого приложения (backend + frontend) оставлены скрипты:
+
+- `npm run dev:legacy`
+- `npm run build:legacy`
+- `npm run start:legacy`

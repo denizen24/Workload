@@ -1,16 +1,44 @@
 {
   "name": "workload-board",
   "private": true,
-  "workspaces": [
-    "apps/backend",
-    "apps/frontend"
-  ],
+  "type": "module",
+  "workspaces": ["apps/backend", "apps/frontend"],
   "scripts": {
-    "dev": "concurrently \"npm --workspace apps/backend run start:dev\" \"npm --workspace apps/frontend run dev\"",
-    "build": "npm --workspace apps/backend run build && npm --workspace apps/frontend run build",
-    "start": "npm --workspace apps/backend run start:prod"
+    "dev": "vite --config apps/youtrack-app/vite.config.ts",
+    "build": "tsc -p apps/youtrack-app/tsconfig.app.json && vite --config apps/youtrack-app/vite.config.ts build && youtrack-app validate apps/youtrack-app/dist --schema apps/youtrack-app/youtrack-app.json",
+    "validate:local": "youtrack-app validate apps/youtrack-app/dist --schema apps/youtrack-app/youtrack-app.json",
+    "lint": "eslint \"apps/youtrack-app/**/*.{js,cjs,ts,tsx}\" --max-warnings 0",
+    "upload": "youtrack-app upload apps/youtrack-app/dist",
+    "zip": "powershell -NoProfile -Command \"$root='%cd%'; $ts=Get-Date -Format 'HHmmss'; $dest=Join-Path $root ('apps/youtrack-app/workload-app-' + $ts + '.zip'); if (Test-Path $dest) { Remove-Item $dest -Force }; Compress-Archive -Path (Join-Path $root 'apps/youtrack-app/dist/*') -DestinationPath $dest -Force\"",
+    "dev:legacy": "concurrently \"npm --workspace apps/backend run start:dev\" \"npm --workspace apps/frontend run dev\"",
+    "build:legacy": "npm --workspace apps/backend run build && npm --workspace apps/frontend run build",
+    "start:legacy": "npm --workspace apps/backend run start:prod"
+  },
+  "dependencies": {
+    "@jetbrains/ring-ui-built": "^7.0.79",
+    "d3-selection": "^3.0.0",
+    "d3-zoom": "^3.0.0",
+    "date-fns": "^3.6.0",
+    "html2canvas": "^1.4.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "@jetbrains/youtrack-apps-tools": "^0.0.2",
+    "@types/node": "^25.2.1",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.15.0",
+    "@typescript-eslint/parser": "^7.15.0",
+    "@vitejs/plugin-react": "^5.1.1",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "postcss": "^8.4.45",
+    "tailwindcss": "^3.4.10",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2",
+    "vite-plugin-static-copy": "^3.1.4"
   }
 }

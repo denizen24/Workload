@@ -1,0 +1,18 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://json.schemastore.org/youtrack-app.json",
+  "title": "JetBrains YouTrack App Manifest Schema",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string"
+    },
+    "widgets": {
+      "type": "array"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "additionalProperties": true
+}

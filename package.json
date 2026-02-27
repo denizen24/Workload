@@ -8,7 +8,9 @@
   "scripts": {
     "dev": "concurrently \"npm --workspace apps/backend run start:dev\" \"npm --workspace apps/frontend run dev\"",
     "build": "npm --workspace apps/backend run build && npm --workspace apps/frontend run build",
-    "start": "npm --workspace apps/backend run start:prod"
+    "start": "npm --workspace apps/backend run start:prod",
+    "smoke:auth-snapshots": "node scripts/smoke-auth-snapshots.mjs",
+    "smoke:compose:auth-snapshots": "node scripts/run-smoke-compose.mjs"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"

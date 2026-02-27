@@ -3,3 +3,4 @@ files
 dist/
 .cursor/
 .idea/
+.env

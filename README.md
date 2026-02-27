@@ -11,6 +11,7 @@
 ## Быстрый старт (Docker)
 
 ```bash
+cp .env.example .env
 docker-compose up --build
 ```
 
@@ -24,6 +25,19 @@ npm run dev
 ```
 
 Backend доступен на `http://localhost:3000`, frontend на `http://localhost:5173`.
+
+## Переменные окружения
+
+Перед запуском backend создайте `.env` на основе `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+Ключевые переменные:
+- `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`
+- `MONGO_URI`
+- `REDIS_HOST`, `REDIS_PORT`
 
 ## Формат XLSX
 
@@ -44,6 +58,34 @@ Backend доступен на `http://localhost:3000`, frontend на `http://loc
 - `GET /api/health`
 - `POST /api/upload` (multipart `file`)
 - `POST /api/workload` (multipart `file`)
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/logout`
+- `GET /api/auth/me`
+- `GET /api/snapshots?sprintId=...`
+- `POST /api/snapshots`
+- `GET /api/snapshots/:id`
+- `PATCH /api/snapshots/:id`
+- `PATCH /api/snapshots/:id/activate`
+- `DELETE /api/snapshots/:id`
+
+`/api/upload`, `/api/workload`, `/api/health`, `/api/auth/register`, `/api/auth/login`, `/api/auth/refresh` — публичные маршруты.  
+`/api/snapshots/*`, `/api/auth/me`, `/api/auth/logout` требуют `Authorization: Bearer <accessToken>`.
+
+## Smoke e2e (auth/snapshots)
+
+Запуск на уже поднятом API:
+
+```bash
+npm run smoke:auth-snapshots
+```
+
+Автоматический запуск через Docker Compose (поднимет mongo/redis/backend, прогонит сценарий и остановит контейнеры):
+
+```bash
+npm run smoke:compose:auth-snapshots
+```
 
 ## Тесты backend
 

@@ -1,3 +1,6 @@
+import * as fs from "fs";
+import * as path from "path";
+
 import {
   BadRequestException,
   Controller,
@@ -8,9 +11,8 @@ import {
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { diskStorage } from "multer";
-import * as fs from "fs";
-import * as path from "path";
 
+import { Public } from "../common/decorators/public.decorator";
 import { ParseService } from "../parse/parse.service";
 
 @Controller("api")
@@ -25,6 +27,7 @@ export class FileController implements OnModuleInit {
     }
   }
 
+  @Public()
   @Post("upload")
   @UseInterceptors(
     FileInterceptor("file", {
@@ -57,6 +60,7 @@ export class FileController implements OnModuleInit {
     return this.parseService.parseWorkbook(buffer);
   }
 
+  @Public()
   @Post("workload")
   @UseInterceptors(
     FileInterceptor("file", {

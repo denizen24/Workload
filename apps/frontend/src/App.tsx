@@ -1,7 +1,26 @@
-import { addDays, endOfMonth, parseISO } from "date-fns";
+import { endOfMonth, parseISO } from "date-fns";
 import html2canvas from "html2canvas";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import {
+  AuthUser,
+  clearAuthTokens,
+  isAuthenticated,
+  login,
+  logout,
+  me,
+  register,
+  saveAuthTokens
+} from "./api/auth";
+import {
+  SnapshotEntity,
+  activateSnapshot,
+  createSnapshot,
+  deleteSnapshot,
+  getSnapshot,
+  getSnapshotStorageMode,
+  getSnapshots
+} from "./api/snapshots";
 import { GanttBoard } from "./components/GanttBoard";
 import { UploadPanel } from "./components/UploadPanel";
 import { CustomTask, CustomTaskType, Sprint, WorkloadResponse } from "./types";
@@ -36,6 +55,15 @@ function formatEstimate(days: number): string {
   return parts.join(" ");
 }
 
+type SnapshotLayoutPayload = {
+  workloadData: WorkloadResponse | null;
+  sprints: Sprint[];
+  startSprintId: string | null;
+  customTasks: CustomTask[];
+  holidays: string[];
+  releaseDates: string[];
+};
+
 export default function App() {
   const [data, setData] = useState<WorkloadResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -67,6 +95,16 @@ export default function App() {
 
   const calendarRef = useRef<HTMLDivElement>(null);
   const [screenshotMenuOpen, setScreenshotMenuOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authName, setAuthName] = useState("");
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [isAuthBusy, setIsAuthBusy] = useState(false);
+  const [snapshotSprintId, setSnapshotSprintId] = useState("");
+  const [snapshotName, setSnapshotName] = useState("");
+  const [snapshots, setSnapshots] = useState<SnapshotEntity[]>([]);
+  const [isSnapshotsBusy, setIsSnapshotsBusy] = useState(false);
 
   const handleSaveScreenshot = useCallback(
     async (format: "png" | "jpeg") => {
@@ -157,6 +195,16 @@ export default function App() {
     return () => document.removeEventListener("click", close);
   }, [screenshotMenuOpen]);
 
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+    me()
+      .then((user) => setCurrentUser(user))
+      .catch(() => {
+        clearAuthTokens();
+        setCurrentUser(null);
+      });
+  }, []);
+
   const handleUpload = useCallback(async (file: File) => {
     setIsLoading(true);
     setError(null);
@@ -216,21 +264,6 @@ export default function App() {
     return Math.max(1, count);
   };
 
-  const addWorkingDays = (start: Date, durationDays: number) => {
-    let remaining = Math.max(1, durationDays);
-    const cursor = new Date(start);
-    while (remaining > 0) {
-      const day = cursor.getDay();
-      if (day !== 0 && day !== 6) {
-        remaining -= 1;
-      }
-      if (remaining > 0) {
-        cursor.setDate(cursor.getDate() + 1);
-      }
-    }
-    return cursor;
-  };
-
   const updateTaskDraft = (patch: Partial<typeof taskDraft>) => {
     setTaskDraft((prev) => ({ ...prev, ...patch }));
   };
@@ -271,6 +304,142 @@ export default function App() {
     setStartSprintId((current) => (current === id ? null : current));
   };
 
+  const buildSnapshotLayout = useCallback(
+    (): SnapshotLayoutPayload => ({
+      workloadData: data,
+      sprints,
+      startSprintId,
+      customTasks,
+      holidays,
+      releaseDates
+    }),
+    [customTasks, data, holidays, releaseDates, sprints, startSprintId]
+  );
+
+  const applySnapshotLayout = (layout: SnapshotLayoutPayload) => {
+    setData(layout.workloadData ?? null);
+    setSprints(Array.isArray(layout.sprints) ? layout.sprints : []);
+    setStartSprintId(layout.startSprintId ?? null);
+    setCustomTasks(Array.isArray(layout.customTasks) ? layout.customTasks : []);
+    setHolidays(Array.isArray(layout.holidays) ? layout.holidays : []);
+    setReleaseDates(Array.isArray(layout.releaseDates) ? layout.releaseDates : []);
+  };
+
+  const handleAuthSubmit = async () => {
+    setIsAuthBusy(true);
+    setError(null);
+    try {
+      const response =
+        authMode === "register"
+          ? await register({
+              email: authEmail,
+              password: authPassword,
+              name: authName
+            })
+          : await login({
+              email: authEmail,
+              password: authPassword
+            });
+      saveAuthTokens(response);
+      setCurrentUser(response.user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка авторизации");
+    } finally {
+      setIsAuthBusy(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setError(null);
+    try {
+      await logout();
+    } catch {
+      clearAuthTokens();
+    } finally {
+      setCurrentUser(null);
+      setSnapshots([]);
+    }
+  };
+
+  const handleLoadSnapshots = async () => {
+    setIsSnapshotsBusy(true);
+    setError(null);
+    try {
+      const result = await getSnapshots(snapshotSprintId || undefined);
+      setSnapshots(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка загрузки снапшотов");
+    } finally {
+      setIsSnapshotsBusy(false);
+    }
+  };
+
+  const handleSaveSnapshot = async () => {
+    if (!snapshotName.trim()) {
+      setError("Введите название снапшота");
+      return;
+    }
+    if (!snapshotSprintId.trim()) {
+      setError("Введите sprintId для снапшота");
+      return;
+    }
+
+    setIsSnapshotsBusy(true);
+    setError(null);
+    try {
+      await createSnapshot({
+        sprintId: snapshotSprintId.trim(),
+        name: snapshotName.trim(),
+        layout: buildSnapshotLayout()
+      });
+      await handleLoadSnapshots();
+      setSnapshotName("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка сохранения снапшота");
+    } finally {
+      setIsSnapshotsBusy(false);
+    }
+  };
+
+  const handleApplySnapshot = async (snapshotId: string) => {
+    setIsSnapshotsBusy(true);
+    setError(null);
+    try {
+      const snapshot = await getSnapshot(snapshotId);
+      applySnapshotLayout(snapshot.layout as SnapshotLayoutPayload);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка применения снапшота");
+    } finally {
+      setIsSnapshotsBusy(false);
+    }
+  };
+
+  const handleActivateSnapshot = async (snapshotId: string) => {
+    setIsSnapshotsBusy(true);
+    setError(null);
+    try {
+      await activateSnapshot(snapshotId);
+      await handleLoadSnapshots();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка активации снапшота");
+    } finally {
+      setIsSnapshotsBusy(false);
+    }
+  };
+
+  const handleDeleteSnapshot = async (snapshotId: string) => {
+    setIsSnapshotsBusy(true);
+    setError(null);
+    try {
+      await deleteSnapshot(snapshotId);
+      setSnapshots((prev) => prev.filter((item) => item._id !== snapshotId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка удаления снапшота");
+    } finally {
+      setIsSnapshotsBusy(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-surface-light px-6 py-8 text-slate-900 dark:bg-surface-dark dark:text-slate-100">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
@@ -288,6 +457,163 @@ export default function App() {
             {theme === "dark" ? "Светлая тема" : "Темная тема"}
           </button>
         </header>
+
+        <section className="rounded-2xl border border-slate-500/20 bg-white/70 p-4 shadow-sm dark:bg-slate-900/50">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold">Авторизация и снапшоты</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Режим хранения: {getSnapshotStorageMode() === "remote" ? "серверный" : "локальный"}.
+              </p>
+            </div>
+            {currentUser ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-slate-500 dark:text-slate-400">
+                  {currentUser.email}
+                </span>
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                  onClick={handleLogout}
+                >
+                  Выйти
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className={`rounded-full border px-4 py-2 text-sm ${
+                    authMode === "login" ? "border-purple-400 text-purple-300" : "border-slate-500/40"
+                  }`}
+                  onClick={() => setAuthMode("login")}
+                >
+                  Вход
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-full border px-4 py-2 text-sm ${
+                    authMode === "register"
+                      ? "border-purple-400 text-purple-300"
+                      : "border-slate-500/40"
+                  }`}
+                  onClick={() => setAuthMode("register")}
+                >
+                  Регистрация
+                </button>
+              </div>
+            )}
+          </div>
+
+          {!currentUser && (
+            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+              <input
+                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                placeholder="Email"
+                value={authEmail}
+                onChange={(event) => setAuthEmail(event.target.value)}
+              />
+              <input
+                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                placeholder="Пароль"
+                type="password"
+                value={authPassword}
+                onChange={(event) => setAuthPassword(event.target.value)}
+              />
+              <input
+                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                placeholder="Имя (для регистрации)"
+                value={authName}
+                onChange={(event) => setAuthName(event.target.value)}
+                disabled={authMode === "login"}
+              />
+              <button
+                type="button"
+                className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                disabled={isAuthBusy}
+                onClick={handleAuthSubmit}
+              >
+                {isAuthBusy ? "..." : authMode === "login" ? "Войти" : "Создать аккаунт"}
+              </button>
+            </div>
+          )}
+
+          {currentUser && (
+            <div className="mt-4">
+              <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
+                <input
+                  className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  placeholder="sprintId (например sprint-1)"
+                  value={snapshotSprintId}
+                  onChange={(event) => setSnapshotSprintId(event.target.value)}
+                />
+                <input
+                  className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  placeholder="Название снапшота"
+                  value={snapshotName}
+                  onChange={(event) => setSnapshotName(event.target.value)}
+                />
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                  disabled={isSnapshotsBusy}
+                  onClick={handleSaveSnapshot}
+                >
+                  Сохранить
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                  disabled={isSnapshotsBusy}
+                  onClick={handleLoadSnapshots}
+                >
+                  Загрузить список
+                </button>
+              </div>
+
+              {snapshots.length > 0 && (
+                <div className="mt-3 grid gap-2 text-sm">
+                  {snapshots.map((item) => (
+                    <div
+                      key={item._id}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-500/20 px-3 py-2"
+                    >
+                      <div>
+                        <span className="font-semibold">{item.name}</span>{" "}
+                        <span className="text-slate-500 dark:text-slate-400">
+                          {item.sprintId} · {item.isActive ? "active" : "inactive"}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          className="rounded-full border border-slate-500/40 px-3 py-1 text-xs"
+                          onClick={() => handleApplySnapshot(item._id)}
+                        >
+                          Применить
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-slate-500/40 px-3 py-1 text-xs"
+                          onClick={() => handleActivateSnapshot(item._id)}
+                        >
+                          Активировать
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-full border border-slate-500/40 px-3 py-1 text-xs"
+                          onClick={() => handleDeleteSnapshot(item._id)}
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </section>
 
         {data && (
           <div className="flex flex-col gap-3">

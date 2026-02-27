@@ -2,7 +2,7 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm ci --no-audit --no-fund
 
 COPY index.html tsconfig.json vite.config.ts tailwind.config.ts postcss.config.cjs ./
 COPY src ./src

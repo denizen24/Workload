@@ -23,13 +23,22 @@ export const validateEnv = (raw: Record<string, unknown>): AppEnv => {
     throw new Error("REDIS_PORT must be a number");
   }
 
+  const jwtAccessSecret = raw.JWT_ACCESS_SECRET != null ? String(raw.JWT_ACCESS_SECRET).trim() : "";
+  const jwtRefreshSecret = raw.JWT_REFRESH_SECRET != null ? String(raw.JWT_REFRESH_SECRET).trim() : "";
+  if (!jwtAccessSecret) {
+    throw new Error("JWT_ACCESS_SECRET is required (set in .env)");
+  }
+  if (!jwtRefreshSecret) {
+    throw new Error("JWT_REFRESH_SECRET is required (set in .env)");
+  }
+
   return {
     PORT: port,
     NODE_ENV: String(raw.NODE_ENV ?? "development"),
     CORS_ORIGIN: String(raw.CORS_ORIGIN ?? "http://localhost:5173"),
-    JWT_ACCESS_SECRET: String(raw.JWT_ACCESS_SECRET ?? "change_me_access_secret"),
+    JWT_ACCESS_SECRET: jwtAccessSecret,
     JWT_ACCESS_EXPIRES_IN: String(raw.JWT_ACCESS_EXPIRES_IN ?? "15m"),
-    JWT_REFRESH_SECRET: String(raw.JWT_REFRESH_SECRET ?? "change_me_refresh_secret"),
+    JWT_REFRESH_SECRET: jwtRefreshSecret,
     JWT_REFRESH_EXPIRES_IN: String(raw.JWT_REFRESH_EXPIRES_IN ?? "7d"),
     MONGO_URI: String(raw.MONGO_URI ?? "mongodb://localhost:27017/workload"),
     REDIS_HOST: String(raw.REDIS_HOST ?? "localhost"),

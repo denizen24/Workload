@@ -87,6 +87,16 @@ npm run smoke:auth-snapshots
 npm run smoke:compose:auth-snapshots
 ```
 
+## Сброс пароля пользователя
+
+Пароль из bcrypt-хэша восстановить нельзя. Чтобы задать пользователю новый пароль (например, если забыт), из корня репозитория:
+
+```bash
+npm run set-password -- <email> <новый_пароль>
+```
+
+Нужны доступ к MongoDB и корректный `MONGO_URI` в `.env`. Скрипт обновляет поле `passwordHash` в коллекции `users`.
+
 ## Тесты backend
 
 ```bash

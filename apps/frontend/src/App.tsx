@@ -82,17 +82,27 @@ export default function App() {
     type: CustomTaskType;
     start: string;
     end: string;
+    taskIdentifier: string;
+    taskKind: string;
+    taskTitle: string;
+    estimateDays: string;
   }>({
     assignee: "",
     type: "duty",
     start: "",
-    end: ""
+    end: "",
+    taskIdentifier: "",
+    taskKind: "",
+    taskTitle: "",
+    estimateDays: ""
   });
   const typeLabel: Record<CustomTaskType, string> = {
     duty: "Дежурство",
     vacation: "Отпуск",
-    sick: "Болезнь"
+    sick: "Болезнь",
+    task: "Задача"
   };
+  const taskKindOptions = ["FEATURE / TECH TASK", "BUG", "TASK"];
 
   const calendarRef = useRef<HTMLDivElement>(null);
   const [screenshotMenuOpen, setScreenshotMenuOpen] = useState(false);
@@ -282,7 +292,22 @@ export default function App() {
       setError("Некорректные даты");
       return;
     }
-    const durationDays = countWorkingDays(startDate, endDate);
+    const isTaskType = taskDraft.type === "task";
+    if (isTaskType) {
+      if (!taskDraft.taskIdentifier.trim() || !taskDraft.taskKind.trim() || !taskDraft.taskTitle.trim()) {
+        setError("Для типа \"Задача\" заполните идентификатор, тип и заголовок");
+        return;
+      }
+      const estimate = Number(taskDraft.estimateDays);
+      if (!Number.isFinite(estimate) || estimate <= 0) {
+        setError("Для типа \"Задача\" укажите корректную оценку (в днях)");
+        return;
+      }
+    }
+    const estimateDays = Number(taskDraft.estimateDays);
+    const durationDays = isTaskType && Number.isFinite(estimateDays) && estimateDays > 0
+      ? Math.max(1, Math.ceil(estimateDays))
+      : countWorkingDays(startDate, endDate);
     const id = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
     setCustomTasks((prev) => [
       ...prev,
@@ -293,9 +318,20 @@ export default function App() {
         start: taskDraft.start,
         end: taskDraft.end,
         durationDays,
-        title: typeLabel[taskDraft.type]
+        title: isTaskType ? taskDraft.taskTitle.trim() : typeLabel[taskDraft.type],
+        taskIdentifier: isTaskType ? taskDraft.taskIdentifier.trim() : undefined,
+        taskKind: isTaskType ? taskDraft.taskKind.trim() : undefined,
+        estimateDays: isTaskType ? Number(taskDraft.estimateDays) : undefined
       }
     ]);
+    setTaskDraft((prev) => ({
+      ...prev,
+      taskIdentifier: "",
+      taskKind: "",
+      taskTitle: "",
+      estimateDays: ""
+    }));
+    setError(null);
   };
 
   const removeCustomTask = (id: string) => {
@@ -736,13 +772,14 @@ export default function App() {
 
         {!data && !isLoading && (
           <div className="rounded-2xl border border-dashed border-slate-500/40 bg-white/50 p-6 text-sm ui-text-secondary dark:bg-slate-900/40">
-            Сначала загрузите XLSX, чтобы увидеть график.
+            В текущей итерации поддерживается только загрузка списка задач из YouTrack в формате файла XLSX.
           </div>
         )}
 
         <UploadPanel onFileAccepted={handleUpload} isLoading={isLoading} error={error} />
 
-        <section className="ui-card">
+        {data && (
+          <section className="ui-card">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold">Спринты</h2>
@@ -815,95 +852,98 @@ export default function App() {
               </div>
             ))}
           </div>
-        </section>
+          </section>
+        )}
 
-        <section className="ui-card">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">Праздничные и релизные дни</h2>
-              <p className="ui-muted">
-                Праздники скрываются из календаря; день релиза выделяется золотистым.
-              </p>
+        {data && (
+          <section className="ui-card">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Праздничные и релизные дни</h2>
+                <p className="ui-muted">
+                  Праздники скрываются из календаря; день релиза выделяется цветом на календаре.
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <select
-              className="ui-input"
-              value={dateMarkerType}
-              onChange={(e) => setDateMarkerType(e.target.value as "holiday" | "release")}
-            >
-              <option value="holiday">Праздничный день</option>
-              <option value="release">День релиза</option>
-            </select>
-            <input
-              className="ui-input"
-              type="date"
-              lang="ru"
-              value={holidayInput}
-              onChange={(e) => setHolidayInput(e.target.value)}
-            />
-            <button
-              type="button"
-              className="ui-btn"
-              onClick={() => {
-                if (!holidayInput) return;
-                const key = holidayInput.trim();
-                if (dateMarkerType === "holiday") {
-                  if (holidays.includes(key)) return;
-                  setHolidays((prev) => [...prev, key].sort());
-                } else {
-                  if (releaseDates.includes(key)) return;
-                  setReleaseDates((prev) => [...prev, key].sort());
-                }
-                setHolidayInput("");
-              }}
-            >
-              Добавить
-            </button>
-          </div>
-          {holidays.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className="ui-text-caption">Праздники:</span>
-              {holidays.map((date) => (
-                <span
-                  key={`h-${date}`}
-                  className="ui-chip-neutral"
-                >
-                  {date}
-                  <button
-                    type="button"
-                    className="ui-chip-neutral-action"
-                    onClick={() => setHolidays((prev) => prev.filter((d) => d !== date))}
-                    aria-label={`Удалить ${date}`}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <select
+                className="ui-input"
+                value={dateMarkerType}
+                onChange={(e) => setDateMarkerType(e.target.value as "holiday" | "release")}
+              >
+                <option value="holiday">Праздничный день</option>
+                <option value="release">День релиза</option>
+              </select>
+              <input
+                className="ui-input"
+                type="date"
+                lang="ru"
+                value={holidayInput}
+                onChange={(e) => setHolidayInput(e.target.value)}
+              />
+              <button
+                type="button"
+                className="ui-btn"
+                onClick={() => {
+                  if (!holidayInput) return;
+                  const key = holidayInput.trim();
+                  if (dateMarkerType === "holiday") {
+                    if (holidays.includes(key)) return;
+                    setHolidays((prev) => [...prev, key].sort());
+                  } else {
+                    if (releaseDates.includes(key)) return;
+                    setReleaseDates((prev) => [...prev, key].sort());
+                  }
+                  setHolidayInput("");
+                }}
+              >
+                Добавить
+              </button>
+            </div>
+            {holidays.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="ui-text-caption">Праздники:</span>
+                {holidays.map((date) => (
+                  <span
+                    key={`h-${date}`}
+                    className="ui-chip-neutral"
                   >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-          {releaseDates.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              <span className="ui-text-caption">Релизы:</span>
-              {releaseDates.map((date) => (
-                <span
-                  key={`r-${date}`}
-                  className="ui-chip-warning"
-                >
-                  {date}
-                  <button
-                    type="button"
-                    className="ui-chip-warning-action"
-                    onClick={() => setReleaseDates((prev) => prev.filter((d) => d !== date))}
-                    aria-label={`Удалить ${date}`}
+                    {date}
+                    <button
+                      type="button"
+                      className="ui-chip-neutral-action"
+                      onClick={() => setHolidays((prev) => prev.filter((d) => d !== date))}
+                      aria-label={`Удалить ${date}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {releaseDates.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <span className="ui-text-caption">Релизы:</span>
+                {releaseDates.map((date) => (
+                  <span
+                    key={`r-${date}`}
+                    className="ui-chip-warning"
                   >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-        </section>
+                    {date}
+                    <button
+                      type="button"
+                      className="ui-chip-warning-action"
+                      onClick={() => setReleaseDates((prev) => prev.filter((d) => d !== date))}
+                      aria-label={`Удалить ${date}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {data && (
           <section className="ui-card">
@@ -911,7 +951,7 @@ export default function App() {
               <div>
                 <h2 className="text-lg font-semibold">Кастомные задачи</h2>
                 <p className="ui-muted">
-                  Добавляйте дежурства и отпуска вручную.
+                  Добавляйте дежурства, отпуска, больничные и отдельные задачи вручную.
                 </p>
               </div>
               <button
@@ -957,6 +997,9 @@ export default function App() {
                 <option value="sick" className="dark:bg-slate-800 dark:text-slate-100">
                   Болезнь
                 </option>
+                <option value="task" className="dark:bg-slate-800 dark:text-slate-100">
+                  Задача
+                </option>
               </select>
               <input
                 className="ui-input"
@@ -973,8 +1016,47 @@ export default function App() {
                 onChange={(event) => updateTaskDraft({ end: event.target.value })}
               />
             </div>
+            {taskDraft.type === "task" && (
+              <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_1.4fr_0.8fr]">
+                <input
+                  className="ui-input"
+                  placeholder="Идентификатор задачи (например WL-123)"
+                  value={taskDraft.taskIdentifier}
+                  onChange={(event) => updateTaskDraft({ taskIdentifier: event.target.value })}
+                />
+                <select
+                  className="ui-input"
+                  value={taskDraft.taskKind}
+                  onChange={(event) => updateTaskDraft({ taskKind: event.target.value })}
+                >
+                  <option value="" className="dark:bg-slate-800 dark:text-slate-100">
+                    Тип задачи
+                  </option>
+                  {taskKindOptions.map((kind) => (
+                    <option key={kind} value={kind} className="dark:bg-slate-800 dark:text-slate-100">
+                      {kind}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="ui-input"
+                  placeholder="Заголовок задачи"
+                  value={taskDraft.taskTitle}
+                  onChange={(event) => updateTaskDraft({ taskTitle: event.target.value })}
+                />
+                <input
+                  className="ui-input"
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  placeholder="Оценка, дн."
+                  value={taskDraft.estimateDays}
+                  onChange={(event) => updateTaskDraft({ estimateDays: event.target.value })}
+                />
+              </div>
+            )}
             <div className="mt-3 ui-text-caption">
-              Длительность рассчитывается автоматически по рабочим дням между датами (выходные не учитываются).
+              Для дежурств/отпусков/больничных длительность считается по рабочим дням; для типа "Задача" берется из оценки.
             </div>
 
             {customTasks.length > 0 && (
@@ -987,7 +1069,10 @@ export default function App() {
                     <div>
                       <span className="font-semibold">{task.assignee}</span>{" "}
                       <span className="ui-text-secondary">
+                        {task.taskIdentifier ? `${task.taskIdentifier} · ` : ""}
+                        {task.taskKind ? `${task.taskKind} · ` : ""}
                         {task.title} · {task.start} → {task.end} · {task.durationDays}д
+                        {task.estimateDays ? ` · оценка ${formatEstimate(task.estimateDays)}` : ""}
                       </span>
                     </div>
                     <button
@@ -1004,25 +1089,46 @@ export default function App() {
         )}
 
         {data && (() => {
-          const taskIds = new Set<string>();
+          const taskMap = new Map<
+            string,
+            { id: string; title: string | null; type: string | null; estimate: number | null }
+          >();
+
           data.assignees.forEach((a) =>
             a.periods.forEach((p) =>
-              p.days.forEach((d) => d.tasks.forEach((t) => taskIds.add(t)))
+              p.days.forEach((d) =>
+                d.tasks.forEach((id) => {
+                  if (!taskMap.has(id)) {
+                    taskMap.set(id, {
+                      id,
+                      title: data.taskTitles?.[id] ?? null,
+                      type: data.taskTypes?.[id] ?? null,
+                      estimate: data.taskEstimates?.[id] ?? null
+                    });
+                  }
+                })
+              )
             )
           );
-          const taskList = Array.from(taskIds)
-            .sort((a, b) => a.localeCompare(b))
-            .map((id) => ({
-              id,
-              title: data.taskTitles?.[id] ?? null,
-              type: data.taskTypes?.[id] ?? null,
-              estimate: data.taskEstimates?.[id] ?? null
-            }));
+
+          customTasks
+            .filter((task) => task.type === "task" && task.taskIdentifier)
+            .forEach((task) => {
+              const id = task.taskIdentifier as string;
+              taskMap.set(id, {
+                id,
+                title: task.title ?? null,
+                type: task.taskKind ?? "TASK",
+                estimate: task.estimateDays ?? null
+              });
+            });
+
+          const taskList = Array.from(taskMap.values()).sort((a, b) => a.id.localeCompare(b.id));
           return taskList.length > 0 ? (
             <section className="ui-card">
-              <h2 className="text-lg font-semibold">Список задач из файла</h2>
+              <h2 className="text-lg font-semibold">Список задач</h2>
               <p className="mt-1 ui-muted">
-                Задачи, распарсенные из загруженного XLSX.
+                Задачи из XLSX и задачи, добавленные вручную.
               </p>
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full min-w-[500px] border-collapse text-sm">
@@ -1057,12 +1163,6 @@ export default function App() {
           ) : null;
         })()}
 
-        {!data && !isLoading && (
-          <div className="text-sm ui-text-secondary">
-            Поддерживаются колонки: Issue ID, Assignee, ownestimate, Period, Status,
-            created, updated, Release, QA, SP.
-          </div>
-        )}
       </div>
     </div>
   );

@@ -30,7 +30,7 @@ export type Sprint = {
   end: string;
 };
 
-export type CustomTaskType = "duty" | "vacation" | "sick";
+export type CustomTaskType = "duty" | "vacation" | "sick" | "task";
 
 export type CustomTask = {
   id: string;
@@ -40,6 +40,9 @@ export type CustomTask = {
   end: string;
   durationDays: number;
   title: string;
+  taskIdentifier?: string;
+  taskKind?: string;
+  estimateDays?: number;
 };
 
 export type WorkloadResponse = {

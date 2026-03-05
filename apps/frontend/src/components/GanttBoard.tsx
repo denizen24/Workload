@@ -217,12 +217,12 @@ export function GanttBoard({
       .filter((task) => task.assignee === assignee.name)
       .map((task) => ({
         id: `custom-${task.id}`,
-        label: task.title,
-        title: null,
-        type: task.type,
+        label: task.type === "task" ? task.taskIdentifier ?? task.title : task.title,
+        title: task.type === "task" ? task.title : null,
+        type: task.type === "task" ? task.taskKind ?? "TASK" : task.type,
         start: parseISO(task.start),
         load: task.durationDays,
-        widthDays: Math.max(1, task.durationDays)
+        widthDays: Math.max(1, Math.ceil(task.estimateDays ?? task.durationDays))
       }));
     return [...baseTasks, ...custom];
   };

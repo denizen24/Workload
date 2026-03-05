@@ -62,6 +62,7 @@ type SnapshotLayoutPayload = {
   customTasks: CustomTask[];
   holidays: string[];
   releaseDates: string[];
+  taskStartDates: Record<string, string>;
 };
 
 export default function App() {
@@ -105,6 +106,7 @@ export default function App() {
   const [snapshotName, setSnapshotName] = useState("");
   const [snapshots, setSnapshots] = useState<SnapshotEntity[]>([]);
   const [isSnapshotsBusy, setIsSnapshotsBusy] = useState(false);
+  const [taskStartDates, setTaskStartDates] = useState<Record<string, string>>({});
 
   const handleSaveScreenshot = useCallback(
     async (format: "png" | "jpeg") => {
@@ -211,6 +213,7 @@ export default function App() {
     try {
       const result = await uploadFile(file);
       setData(result);
+      setTaskStartDates({});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка обработки файла");
     } finally {
@@ -311,9 +314,10 @@ export default function App() {
       startSprintId,
       customTasks,
       holidays,
-      releaseDates
+      releaseDates,
+      taskStartDates
     }),
-    [customTasks, data, holidays, releaseDates, sprints, startSprintId]
+    [customTasks, data, holidays, releaseDates, sprints, startSprintId, taskStartDates]
   );
 
   const applySnapshotLayout = (layout: SnapshotLayoutPayload) => {
@@ -323,6 +327,11 @@ export default function App() {
     setCustomTasks(Array.isArray(layout.customTasks) ? layout.customTasks : []);
     setHolidays(Array.isArray(layout.holidays) ? layout.holidays : []);
     setReleaseDates(Array.isArray(layout.releaseDates) ? layout.releaseDates : []);
+    setTaskStartDates(
+      layout.taskStartDates && typeof layout.taskStartDates === "object"
+        ? layout.taskStartDates
+        : {}
+    );
   };
 
   const handleAuthSubmit = async () => {
@@ -629,6 +638,8 @@ export default function App() {
                 customTasks={customTasks}
                 holidays={holidays}
                 releaseDates={releaseDates}
+                taskStartDates={taskStartDates}
+                onTaskStartDatesChange={setTaskStartDates}
               />
             </div>
             <div className="relative flex items-center gap-2">

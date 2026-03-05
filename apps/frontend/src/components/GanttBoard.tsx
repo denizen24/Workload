@@ -2,7 +2,7 @@ import { endOfWeek, format, parseISO, startOfWeek } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 
 import { Assignee, CustomTask, DayLoad, Sprint, WorkloadResponse } from "../types";
-import { buildTimeline, getDateRange, quarterOf } from "../utils/date";
+import { buildTimeline, getDateRange } from "../utils/date";
 
 type GanttBoardProps = {
   data: WorkloadResponse;
@@ -12,18 +12,18 @@ type GanttBoardProps = {
   customTasks?: CustomTask[];
   holidays?: string[];
   releaseDates?: string[];
+  taskStartDates?: Record<string, string>;
+  onTaskStartDatesChange?: (next: Record<string, string>) => void;
 };
 
 const NAME_COLUMN_WIDTH = 180;
 const SPRINT_BAR_HEIGHT = 24;
 const MONTH_BAR_HEIGHT = 22;
-const QUARTER_BAR_HEIGHT = 20;
 const DAY_LABEL_HEIGHT = 18;
 const HEADER_HEIGHT =
   SPRINT_BAR_HEIGHT + MONTH_BAR_HEIGHT + DAY_LABEL_HEIGHT + 8;
 const ROW_HEIGHT = 160; // Увеличено вдвое
 const DAY_WIDTH = 40;
-const WEEKEND_WIDTH = 16;
 const ROW_PADDING = 10;
 const STACK_GAP = 36; // Увеличено вдвое
 
@@ -75,41 +75,6 @@ const loadColor = (_load: number, taskType: string | null | undefined = null) =>
   return "#4ade80";
 };
 
-const isFeatureTask = (taskId: string, taskType: string | null | undefined, taskTypes?: Record<string, string | null>): boolean => {
-  // Сначала проверяем тип задачи из данных (если доступен)
-  const type = taskType ?? taskTypes?.[taskId];
-  if (type) {
-    const lowerType = type.toLowerCase();
-    return (
-      lowerType === "feature" ||
-      lowerType === "feat" ||
-      lowerType.includes("feature") ||
-      lowerType.includes("feat")
-    );
-  }
-
-  // Если тип не указан, проверяем по ID задачи
-  const lowerId = taskId.toLowerCase();
-  const upperId = taskId.toUpperCase();
-  
-  // Проверяем различные варианты написания feature/FEATURE
-  return (
-    lowerId.includes("feature") ||
-    upperId.includes("FEATURE") ||
-    lowerId.includes("feat") ||
-    upperId.includes("FEAT") ||
-    lowerId.startsWith("feat-") ||
-    lowerId.startsWith("feat/") ||
-    lowerId.startsWith("feat_") ||
-    upperId.startsWith("FEAT-") ||
-    upperId.startsWith("FEAT/") ||
-    upperId.startsWith("FEAT_") ||
-    lowerId.match(/^feat/i) !== null ||
-    upperId.match(/^FEAT/i) !== null ||
-    taskId.match(/FEATURE/i) !== null
-  );
-};
-
 const noteColor = (assignee: string) => {
   if (assignee.startsWith("a.")) return "#fef08a";
   if (assignee.startsWith("s.")) return "#bbf7d0";
@@ -133,7 +98,9 @@ export function GanttBoard({
   theme = "dark",
   customTasks = [],
   holidays = [],
-  releaseDates = []
+  releaseDates = [],
+  taskStartDates = {},
+  onTaskStartDatesChange
 }: GanttBoardProps) {
   const holidaysSet = useMemo(() => new Set(holidays), [holidays]);
   const releaseDatesSet = useMemo(() => new Set(releaseDates), [releaseDates]);
@@ -333,6 +300,25 @@ export function GanttBoard({
   const totalHeight =
     HEADER_HEIGHT + rowLayout.reduce((sum, row) => sum + row.height, 0) + 40;
 
+  const taskPlacementMeta = useMemo(() => {
+    const meta = new Map<string, { baseStartIndex: number; widthDays: number }>();
+    rowLayout.forEach((row) => {
+      row.tasks.forEach((task) => {
+        const taskId = `${row.assignee.name}::${task.id}`;
+        const startKey = format(task.start, "yyyy-MM-dd");
+        const baseStartIndex = dayIndex.get(startKey);
+        if (baseStartIndex === undefined) {
+          return;
+        }
+        meta.set(taskId, {
+          baseStartIndex,
+          widthDays: task.widthDays
+        });
+      });
+    });
+    return meta;
+  }, [dayIndex, rowLayout]);
+
   useEffect(() => {
     if (!dragState.taskId) return;
     const handleMove = (event: PointerEvent) => {
@@ -344,6 +330,45 @@ export function GanttBoard({
       }));
     };
     const handleUp = () => {
+      const taskId = dragState.taskId;
+      if (taskId && onTaskStartDatesChange) {
+        const placement = taskPlacementMeta.get(taskId);
+        if (placement) {
+          const computeEndIndexLocal = (startIndex: number, workdayCount: number) => {
+            let remaining = Math.max(1, Math.round(workdayCount));
+            let index = startIndex;
+            while (index < days.length && remaining > 0) {
+              const day = days[index];
+              const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+              const isHol = holidaysSet.has(format(day, "yyyy-MM-dd"));
+              if (!isWeekend && !isHol) {
+                remaining -= 1;
+              }
+              if (remaining > 0) {
+                index += 1;
+              }
+            }
+            return Math.min(days.length - 1, index);
+          };
+          const rawOffset = dragOffsets[taskId] ?? 0;
+          const endIndex = computeEndIndexLocal(placement.baseStartIndex, placement.widthDays);
+          const maxOffset = days.length - 1 - endIndex;
+          const minOffset = -placement.baseStartIndex;
+          const offset = clamp(rawOffset, minOffset, maxOffset);
+          const adjustedStartIndex = clamp(
+            placement.baseStartIndex + offset,
+            0,
+            days.length - 1
+          );
+          const adjustedDay = days[adjustedStartIndex];
+          if (adjustedDay) {
+            onTaskStartDatesChange({
+              ...taskStartDates,
+              [taskId]: format(adjustedDay, "yyyy-MM-dd")
+            });
+          }
+        }
+      }
       setDragState({ taskId: null, startX: 0, startOffset: 0 });
     };
     window.addEventListener("pointermove", handleMove);
@@ -352,16 +377,21 @@ export function GanttBoard({
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
-  }, [dragState]);
+  }, [
+    days,
+    dragOffsets,
+    dragState,
+    holidaysSet,
+    onTaskStartDatesChange,
+    taskPlacementMeta,
+    taskStartDates
+  ]);
 
   const headerTextColor = theme === "dark" ? "#c7d2fe" : "#1e1b4b";
   const sprintFill = theme === "dark" ? "#818cf8" : "#a5b4fc";
   const monthFill = theme === "dark" ? "#0f172a" : "#e2e8f0";
   const gridStroke = theme === "dark" ? "rgba(148, 163, 184, 0.25)" : "rgba(15, 23, 42, 0.12)";
   const rowStroke = theme === "dark" ? "rgba(148, 163, 184, 0.2)" : "rgba(15, 23, 42, 0.08)";
-  const weekendFill = theme === "dark" ? "rgba(30, 41, 59, 0.35)" : "rgba(100, 116, 139, 0.12)";
-
-  const dayWidth = DAY_WIDTH;
 
   const xForIndex = (index: number) => {
     const day = days[index];
@@ -600,7 +630,7 @@ export function GanttBoard({
 
                 {row.tasks.map((task, taskIndex) => {
                   const taskId = `${row.assignee.name}::${task.id}`;
-                  const startKey = format(task.start, "yyyy-MM-dd");
+                  const startKey = taskStartDates[taskId] ?? format(task.start, "yyyy-MM-dd");
                   const startIndex = dayIndex.get(startKey);
                   if (startIndex === undefined) return null;
                   const baseOffset = dragOffsets[taskId] ?? 0;

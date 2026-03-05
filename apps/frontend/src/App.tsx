@@ -66,6 +66,7 @@ type SnapshotLayoutPayload = {
 };
 
 export default function App() {
+  const planningPreviewSrc = `${import.meta.env.BASE_URL}workload-planning-example.png`;
   const [data, setData] = useState<WorkloadResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -782,29 +783,34 @@ export default function App() {
           </div>
         )}
 
-        {!data && !isLoading && (
-          <div className="rounded-2xl border border-dashed border-slate-500/40 bg-white/50 p-6 text-sm ui-text-secondary dark:bg-slate-900/40">
-            В текущей итерации поддерживается только загрузка списка задач из YouTrack в формате файла XLSX.
-          </div>
+        {!data && (
+          <section className="ui-card border-dashed border-slate-500/40 bg-white/50 dark:bg-slate-900/40">
+            <div className="flex flex-col gap-3">
+              <p className="text-sm ui-text-secondary">
+                В текущей итерации поддерживается только загрузка списка задач из YouTrack в формате файла XLSX.
+              </p>
+              <UploadPanel onFileAccepted={handleUpload} isLoading={isLoading} error={error} />
+            </div>
+          </section>
         )}
 
         {!data && !isLoading && !currentUser && (
           <section className="ui-card">
             <div className="flex flex-col gap-3">
               <div>
-                <h2 className="text-lg font-semibold">Пример планирования нагрузки</h2>
+                <h2 className="text-lg font-semibold">Пример, как может выглядеть ваш календарь планирования</h2>
                 <p className="ui-muted">Нажмите на миниатюру, чтобы открыть изображение на весь экран.</p>
               </div>
               <button
                 type="button"
                 className="group relative overflow-hidden rounded-xl border border-slate-500/30"
                 onClick={() => setIsPlanningPreviewOpen(true)}
-                aria-label="Открыть пример планирования нагрузки"
+                aria-label="Открыть пример календаря планирования"
               >
                 <img
-                  src="/workload-planning-example.png"
-                  alt="Пример планирования нагрузки разработчиков"
-                  className="h-auto w-full transition-transform duration-200 group-hover:scale-[1.01]"
+                  src={planningPreviewSrc}
+                  alt="Пример календаря планирования нагрузки разработчиков"
+                  className="h-auto min-h-40 w-full bg-slate-100 object-cover transition-transform duration-200 group-hover:scale-[1.01] dark:bg-slate-800"
                 />
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-900/20">
                   <span className="rounded-full bg-black/50 px-3 py-1 text-xs text-white">
@@ -815,8 +821,6 @@ export default function App() {
             </div>
           </section>
         )}
-
-        <UploadPanel onFileAccepted={handleUpload} isLoading={isLoading} error={error} />
 
         {data && (
           <section className="ui-card">
@@ -1221,8 +1225,8 @@ export default function App() {
             ×
           </button>
           <img
-            src="/workload-planning-example.png"
-            alt="Пример планирования нагрузки разработчиков"
+            src={planningPreviewSrc}
+            alt="Пример календаря планирования нагрузки разработчиков"
             className="max-h-[92vh] max-w-[96vw] rounded-lg border border-white/20 object-contain shadow-2xl"
           />
         </div>

@@ -1,10 +1,10 @@
 # Workload Board
 
-Локальное Dockerized веб-приложение для визуализации workload разработчиков в формате Miro Gantt.
+Сервис для планирования и балансировки нагрузки команды: загрузка задач из YouTrack (XLSX), визуальный календарь занятости, ручные корректировки и сохранение сценариев в снапшоты.
 
 ## Структура
 
-- `apps/backend` — NestJS 10 API: загрузка и парсинг XLSX
+- `apps/backend` — NestJS 10 API: загрузка/парсинг XLSX, auth, snapshots
 - `apps/frontend` — React 18 + Vite + Tailwind UI
 - `docker-compose.yml` — сборка и запуск контейнеров
 
@@ -15,7 +15,7 @@ cp .env.example .env
 docker-compose up --build
 ```
 
-Откройте `http://localhost` и загрузите пример `Zadachi-1.xlsx`.
+Откройте `http://localhost:8080`.
 
 ## Локальный запуск (без Docker)
 
@@ -36,12 +36,19 @@ cp .env.example .env
 
 Ключевые переменные:
 - `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`
+- `JWT_ACCESS_EXPIRES_IN`, `JWT_REFRESH_EXPIRES_IN`
 - `MONGO_URI`
 - `REDIS_HOST`, `REDIS_PORT`
 
-## Формат XLSX
+## Текущий UX-флоу
 
-Лист: `issues`.
+- Сначала доступен стартовый экран: блок о текущей итерации, загрузка XLSX и preview-пример календаря.
+- После загрузки XLSX отображаются календарь, спринты, маркеры праздников/релизов и кастомные задачи.
+- Блок снапшотов доступен только авторизованному пользователю.
+
+## Формат XLSX (текущая итерация)
+
+Лист: `issues` (или первый лист, если `issues` не найден).
 
 Ожидаемые колонки (по заголовкам или приближенно по содержимому):
 - `Issue ID` (например `UCR-846`)
@@ -73,6 +80,15 @@ cp .env.example .env
 `/api/upload`, `/api/workload`, `/api/health`, `/api/auth/register`, `/api/auth/login`, `/api/auth/refresh` — публичные маршруты.  
 `/api/snapshots/*`, `/api/auth/me`, `/api/auth/logout` требуют `Authorization: Bearer <accessToken>`.
 
+## Фронтенд-функционал
+
+- Drag-and-drop задач в календаре с сохранением новых стартовых дат в снапшоте.
+- Ручные задачи:
+  - `дежурство`, `отпуск`, `болезнь`;
+  - `задача` (идентификатор, тип, заголовок, оценка).
+- Экспорт скриншота календаря в `PNG`/`JPG`.
+- Переключение темной/светлой темы.
+
 ## Smoke e2e (auth/snapshots)
 
 Запуск на уже поднятом API:
@@ -85,6 +101,20 @@ npm run smoke:auth-snapshots
 
 ```bash
 npm run smoke:compose:auth-snapshots
+```
+
+## Docker: важная заметка по preview-картинкам
+
+Для корректной раздачи файлов из `apps/frontend/public` в контейнере frontend Dockerfile должен включать копирование:
+
+```dockerfile
+COPY public ./public
+```
+
+Если обновились статические assets, пересоберите frontend-образ:
+
+```bash
+docker compose up -d --build frontend
 ```
 
 ## Мини UI-контракт (frontend)

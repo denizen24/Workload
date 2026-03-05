@@ -2,13 +2,20 @@ import { endOfWeek, format, parseISO, startOfWeek } from "date-fns";
 import { useEffect, useMemo, useState } from "react";
 
 import { Assignee, CustomTask, DayLoad, Sprint, WorkloadResponse } from "../types";
+import {
+  boardPalette,
+  getAssigneeNoteColor,
+  getTaskColor,
+  taskColors,
+  type ThemeMode
+} from "../theme/boardPalette";
 import { buildTimeline, getDateRange } from "../utils/date";
 
 type GanttBoardProps = {
   data: WorkloadResponse;
   sprints?: Sprint[];
   startSprintId?: string | null;
-  theme?: "light" | "dark";
+  theme?: ThemeMode;
   customTasks?: CustomTask[];
   holidays?: string[];
   releaseDates?: string[];
@@ -29,57 +36,6 @@ const STACK_GAP = 36; // Увеличено вдвое
 
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
-
-const loadColor = (_load: number, taskType: string | null | undefined = null) => {
-  const lower = taskType?.toLowerCase() ?? "";
-
-  const isFeatureOrTech =
-    lower.includes("feature") ||
-    lower.includes("feat") ||
-    lower.includes("tech task") ||
-    lower.includes("tech_task") ||
-    lower === "tech";
-
-  const isBug = lower.includes("bug");
-
-  const isTask =
-    lower === "task" ||
-    lower === "tasc" ||
-    lower.includes("task") ||
-    lower.includes("tasc") ||
-    lower.includes("таск");
-
-  const isDuty = lower === "duty" || lower.includes("дежурство");
-
-  if (isDuty) {
-    // Жёлтый для дежурства
-    return "#facc15"; // yellow-400
-  }
-
-  if (isFeatureOrTech) {
-    // Немного темнее зелёного для FEATURE и TECH TASK
-    return "#22c55e"; // green-500
-  }
-
-  if (isBug) {
-    // Оранжевый для BUG
-    return "#f97316"; // orange-500
-  }
-
-  if (isTask) {
-    // Светло-зелёный для TASK
-    return "#4ade80"; // green-400
-  }
-
-  // Обычные цвета для TASK и остальных
-  return "#4ade80";
-};
-
-const noteColor = (assignee: string) => {
-  if (assignee.startsWith("a.")) return "#fef08a";
-  if (assignee.startsWith("s.")) return "#bbf7d0";
-  return "#fbcfe8";
-};
 
 const collectDays = (assignee: Assignee) => {
   const map = new Map<string, DayLoad>();
@@ -277,6 +233,7 @@ export function GanttBoard({
     startOffset: number;
   }>({ taskId: null, startX: 0, startOffset: 0 });
   const [dragOffsets, setDragOffsets] = useState<Record<string, number>>({});
+  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
 
   const rowLayout = useMemo(() => {
     return data.assignees.map((assignee) => {
@@ -387,11 +344,7 @@ export function GanttBoard({
     taskStartDates
   ]);
 
-  const headerTextColor = theme === "dark" ? "#c7d2fe" : "#1e1b4b";
-  const sprintFill = theme === "dark" ? "#818cf8" : "#a5b4fc";
-  const monthFill = theme === "dark" ? "#0f172a" : "#e2e8f0";
-  const gridStroke = theme === "dark" ? "rgba(148, 163, 184, 0.25)" : "rgba(15, 23, 42, 0.12)";
-  const rowStroke = theme === "dark" ? "rgba(148, 163, 184, 0.2)" : "rgba(15, 23, 42, 0.08)";
+  const boardColors = boardPalette[theme];
 
   const xForIndex = (index: number) => {
     const day = days[index];
@@ -475,11 +428,11 @@ export function GanttBoard({
                   y={0}
                   width={width}
                   height={SPRINT_BAR_HEIGHT}
-                  fill={sprintFill}
+                  fill={boardColors.sprintFill}
                   opacity={0.35}
                   rx={6}
                 />
-                <text x={x + 6} y={16} fontSize={11} fill={headerTextColor}>
+                <text x={x + 6} y={16} fontSize={11} fill={boardColors.headerText}>
                   {sprint.name || "Спринт"}
                 </text>
               </g>
@@ -498,14 +451,14 @@ export function GanttBoard({
                   y={SPRINT_BAR_HEIGHT + 2}
                   width={width}
                   height={MONTH_BAR_HEIGHT}
-                  fill={monthFill}
+                  fill={boardColors.monthFill}
                   opacity={0.12}
                 />
                 <text
                   x={x + 8}
                   y={SPRINT_BAR_HEIGHT + 2 + 15}
                   fontSize={12}
-                  fill="#94a3b8"
+                  fill={boardColors.metaText}
                 >
                   {month.label}
                 </text>
@@ -521,7 +474,7 @@ export function GanttBoard({
                 x={NAME_COLUMN_WIDTH + x + 6}
                 y={HEADER_HEIGHT - 6}
                 fontSize={9}
-                fill="#94a3b8"
+                fill={boardColors.metaText}
               >
                 {format(day, "d")}
               </text>
@@ -536,7 +489,7 @@ export function GanttBoard({
                 x={textX}
                 y={lineMidY}
                 fontSize={10}
-                fill="#ef4444"
+                fill={boardColors.weekendText}
                 opacity={0.7}
                 transform={`rotate(-90 ${textX} ${lineMidY})`}
                 textAnchor="middle"
@@ -556,7 +509,7 @@ export function GanttBoard({
               y={HEADER_HEIGHT - 8}
               width={DAY_WIDTH}
               height={totalHeight - (HEADER_HEIGHT - 8)}
-              fill="#fef3c7"
+              fill={boardColors.releaseBg}
               opacity={0.4}
             />
           ))}
@@ -567,7 +520,7 @@ export function GanttBoard({
               x2={NAME_COLUMN_WIDTH + x}
               y1={HEADER_HEIGHT - 8}
               y2={totalHeight}
-              stroke={gridStroke}
+              stroke={boardColors.gridStroke}
             />
           ))}
           {releaseDayMeta.map(({ day, x }) => (
@@ -577,7 +530,7 @@ export function GanttBoard({
               x2={NAME_COLUMN_WIDTH + x + DAY_WIDTH / 2}
               y1={HEADER_HEIGHT - 8}
               y2={totalHeight}
-              stroke="#d97706"
+              stroke={boardColors.releaseLine}
               strokeWidth={2}
               opacity={0.9}
             />
@@ -589,7 +542,7 @@ export function GanttBoard({
               x2={NAME_COLUMN_WIDTH + x}
               y1={HEADER_HEIGHT - 8}
               y2={totalHeight}
-              stroke="#ef4444"
+              stroke={boardColors.weekendLine}
               strokeWidth={1.5}
               strokeDasharray="4 4"
               opacity={0.7}
@@ -602,7 +555,7 @@ export function GanttBoard({
               x2={NAME_COLUMN_WIDTH + x}
               y1={HEADER_HEIGHT - 8}
               y2={totalHeight}
-              stroke="#94a3b8"
+              stroke={boardColors.holidayLine}
               strokeWidth={1}
               strokeDasharray="2 2"
               opacity={0.5}
@@ -618,14 +571,14 @@ export function GanttBoard({
                   x2={totalWidth}
                   y1={y}
                   y2={y}
-                  stroke={rowStroke}
+                  stroke={boardColors.rowStroke}
                 />
                 <line
                   x1={NAME_COLUMN_WIDTH}
                   x2={totalWidth}
                   y1={y + row.height}
                   y2={y + row.height}
-                  stroke={rowStroke}
+                  stroke={boardColors.rowStroke}
                 />
 
                 {row.tasks.map((task, taskIndex) => {
@@ -652,10 +605,11 @@ export function GanttBoard({
                   );
                   const barHeight = 32; // Увеличено вдвое
                   const barY = y + ROW_PADDING + taskIndex * STACK_GAP;
-                  const intensity = task.load / Math.max(1, widthDays);
                   const taskType = 'type' in task ? task.type : null;
                   const taskTitle = 'title' in task ? task.title : null;
                   const tooltipText = taskTitle ? `${task.label}\n${taskTitle}` : task.label;
+                  const isActiveDrag = dragState.taskId === taskId;
+                  const isHovered = hoveredTaskId === taskId;
                   return (
                     <g
                       key={taskId}
@@ -666,7 +620,9 @@ export function GanttBoard({
                           startOffset: baseOffset
                         })
                       }
-                      style={{ cursor: "grab" }}
+                      onPointerEnter={() => setHoveredTaskId(taskId)}
+                      onPointerLeave={() => setHoveredTaskId((prev) => (prev === taskId ? null : prev))}
+                      style={{ cursor: isActiveDrag ? "grabbing" : "grab" }}
                     >
                       <title>{tooltipText}</title>
                       <rect
@@ -675,13 +631,19 @@ export function GanttBoard({
                         width={width}
                         height={barHeight}
                         rx={4}
-                        fill={loadColor(intensity, taskType)}
-                        opacity={0.85}
-                        stroke={noteColor(row.assignee.name)}
-                        strokeWidth={1}
+                        fill={getTaskColor(taskType)}
+                        opacity={isActiveDrag ? 1 : isHovered ? 0.95 : 0.85}
+                        stroke={getAssigneeNoteColor(row.assignee.name)}
+                        strokeWidth={isActiveDrag ? 2 : isHovered ? 1.5 : 1}
                       />
                       {/* Первая строка - тип и ID задачи */}
-                      <text x={x + 6} y={barY + 12} fontSize={9} fill="#0f172a" fontWeight="600">
+                      <text
+                        x={x + 6}
+                        y={barY + 12}
+                        fontSize={10}
+                        fill={boardColors.taskPrimaryText}
+                        fontWeight="600"
+                      >
                         {taskType ? `${taskType} · ${task.label}` : task.label}
                       </text>
                       {/* Вторая строка - название задачи (если есть) */}
@@ -689,8 +651,8 @@ export function GanttBoard({
                         <text
                           x={x + 6}
                           y={barY + 24}
-                          fontSize={8}
-                          fill="#475569"
+                          fontSize={9}
+                          fill={boardColors.taskSecondaryText}
                           width={width - 12}
                         >
                           {(() => {
@@ -725,7 +687,7 @@ export function GanttBoard({
                   x2={startX}
                   y1={HEADER_HEIGHT - 8}
                   y2={totalHeight}
-                  stroke="#6366f1"
+                  stroke={boardColors.sprintBoundary}
                   strokeOpacity={0.6}
                   strokeDasharray="4 4"
                 />
@@ -734,7 +696,7 @@ export function GanttBoard({
                   x2={endX}
                   y1={HEADER_HEIGHT - 8}
                   y2={totalHeight}
-                  stroke="#6366f1"
+                  stroke={boardColors.sprintBoundary}
                   strokeOpacity={0.4}
                   strokeDasharray="4 4"
                 />
@@ -749,7 +711,7 @@ export function GanttBoard({
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block h-3 w-4 rounded"
-            style={{ backgroundColor: "#16a34a" }}
+            style={{ backgroundColor: taskColors.featureOrTech }}
             aria-hidden
           />
           FEATURE / TECH TASK
@@ -757,7 +719,7 @@ export function GanttBoard({
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block h-3 w-4 rounded"
-            style={{ backgroundColor: "#f97316" }}
+            style={{ backgroundColor: taskColors.bug }}
             aria-hidden
           />
           BUG
@@ -765,7 +727,7 @@ export function GanttBoard({
         <span className="flex items-center gap-1.5">
           <span
             className="inline-block h-3 w-4 rounded"
-            style={{ backgroundColor: "#4ade80" }}
+            style={{ backgroundColor: taskColors.task }}
             aria-hidden
           />
           TASK

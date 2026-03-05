@@ -99,13 +99,13 @@ export default function App() {
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
-  const [authName, setAuthName] = useState("");
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isAuthBusy, setIsAuthBusy] = useState(false);
   const [snapshotSprintId, setSnapshotSprintId] = useState("");
   const [snapshotName, setSnapshotName] = useState("");
   const [snapshots, setSnapshots] = useState<SnapshotEntity[]>([]);
   const [isSnapshotsBusy, setIsSnapshotsBusy] = useState(false);
+  const [hasLoadedSnapshots, setHasLoadedSnapshots] = useState(false);
   const [taskStartDates, setTaskStartDates] = useState<Record<string, string>>({});
 
   const handleSaveScreenshot = useCallback(
@@ -307,6 +307,10 @@ export default function App() {
     setStartSprintId((current) => (current === id ? null : current));
   };
 
+  const handleResetTaskLayout = () => {
+    setTaskStartDates({});
+  };
+
   const buildSnapshotLayout = useCallback(
     (): SnapshotLayoutPayload => ({
       workloadData: data,
@@ -342,8 +346,7 @@ export default function App() {
         authMode === "register"
           ? await register({
               email: authEmail,
-              password: authPassword,
-              name: authName
+              password: authPassword
             })
           : await login({
               email: authEmail,
@@ -367,6 +370,7 @@ export default function App() {
     } finally {
       setCurrentUser(null);
       setSnapshots([]);
+      setHasLoadedSnapshots(false);
     }
   };
 
@@ -376,6 +380,7 @@ export default function App() {
     try {
       const result = await getSnapshots(snapshotSprintId || undefined);
       setSnapshots(result);
+      setHasLoadedSnapshots(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка загрузки снапшотов");
     } finally {
@@ -403,6 +408,7 @@ export default function App() {
       });
       await handleLoadSnapshots();
       setSnapshotName("");
+      setHasLoadedSnapshots(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка сохранения снапшота");
     } finally {
@@ -455,45 +461,47 @@ export default function App() {
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">Workload Board</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Визуализация нагрузки разработчиков в формате Miro Gantt
+            <p className="ui-muted">
+              Визуализация нагрузки разработчиков
             </p>
           </div>
           <button
-            className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+            className="ui-btn"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
             {theme === "dark" ? "Светлая тема" : "Темная тема"}
           </button>
         </header>
 
-        <section className="rounded-2xl border border-slate-500/20 bg-white/70 p-4 shadow-sm dark:bg-slate-900/50">
+        <section className="ui-card">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold">Авторизация и снапшоты</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Режим хранения: {getSnapshotStorageMode() === "remote" ? "серверный" : "локальный"}.
+              <h2 className="text-lg font-semibold">Авторизация</h2>
+              <p className="ui-muted">
+                Авторизация нужна, чтобы сохранять таблицы нагрузки и работать со снапшотами.
               </p>
             </div>
             {currentUser ? (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-500 dark:text-slate-400">
+                <span className="ui-muted">
                   {currentUser.email}
                 </span>
                 <button
                   type="button"
-                  className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                  className="ui-btn"
                   onClick={handleLogout}
                 >
                   Выйти
                 </button>
               </div>
             ) : (
-              <div className="flex gap-2">
+              <div className="ui-segmented">
                 <button
                   type="button"
-                  className={`rounded-full border px-4 py-2 text-sm ${
-                    authMode === "login" ? "border-purple-400 text-purple-300" : "border-slate-500/40"
+                  className={`ui-segment-btn ${
+                    authMode === "login"
+                      ? "ui-segment-btn-active"
+                      : ""
                   }`}
                   onClick={() => setAuthMode("login")}
                 >
@@ -501,10 +509,10 @@ export default function App() {
                 </button>
                 <button
                   type="button"
-                  className={`rounded-full border px-4 py-2 text-sm ${
+                  className={`ui-segment-btn ${
                     authMode === "register"
-                      ? "border-purple-400 text-purple-300"
-                      : "border-slate-500/40"
+                      ? "ui-segment-btn-active"
+                      : ""
                   }`}
                   onClick={() => setAuthMode("register")}
                 >
@@ -515,70 +523,90 @@ export default function App() {
           </div>
 
           {!currentUser && (
-            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
               <input
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                className="ui-input"
                 placeholder="Email"
                 value={authEmail}
                 onChange={(event) => setAuthEmail(event.target.value)}
               />
               <input
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                className="ui-input"
                 placeholder="Пароль"
                 type="password"
                 value={authPassword}
                 onChange={(event) => setAuthPassword(event.target.value)}
               />
-              <input
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
-                placeholder="Имя (для регистрации)"
-                value={authName}
-                onChange={(event) => setAuthName(event.target.value)}
-                disabled={authMode === "login"}
-              />
               <button
                 type="button"
-                className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                className="ui-btn ui-btn-primary"
                 disabled={isAuthBusy}
                 onClick={handleAuthSubmit}
               >
-                {isAuthBusy ? "..." : authMode === "login" ? "Войти" : "Создать аккаунт"}
+                {isAuthBusy && <span className="ui-spinner" aria-hidden />}
+                {isAuthBusy ? "Выполняю..." : authMode === "login" ? "Войти" : "Создать аккаунт"}
               </button>
             </div>
           )}
+        </section>
 
-          {currentUser && (
+        {currentUser && (
+          <section className="ui-card">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Снапшоты и сохранение</h2>
+                <p className="ui-muted">
+                  Режим хранения: {getSnapshotStorageMode() === "remote" ? "серверный" : "локальный"}.
+                </p>
+              </div>
+            </div>
             <div className="mt-4">
               <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
                 <input
-                  className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  className="ui-input"
                   placeholder="sprintId (например sprint-1)"
                   value={snapshotSprintId}
                   onChange={(event) => setSnapshotSprintId(event.target.value)}
                 />
                 <input
-                  className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  className="ui-input"
                   placeholder="Название снапшота"
                   value={snapshotName}
                   onChange={(event) => setSnapshotName(event.target.value)}
                 />
                 <button
                   type="button"
-                  className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                  className="ui-btn ui-btn-primary"
                   disabled={isSnapshotsBusy}
                   onClick={handleSaveSnapshot}
                 >
+                  {isSnapshotsBusy && <span className="ui-spinner" aria-hidden />}
                   Сохранить
                 </button>
                 <button
                   type="button"
-                  className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                  className="ui-btn"
                   disabled={isSnapshotsBusy}
                   onClick={handleLoadSnapshots}
                 >
+                  {isSnapshotsBusy && <span className="ui-spinner" aria-hidden />}
                   Загрузить список
                 </button>
               </div>
+
+              {isSnapshotsBusy && snapshots.length === 0 && (
+                <div className="mt-3 grid gap-2">
+                  <div className="ui-skeleton h-10 w-full" />
+                  <div className="ui-skeleton h-10 w-full" />
+                  <div className="ui-skeleton h-10 w-full" />
+                </div>
+              )}
+
+              {!isSnapshotsBusy && hasLoadedSnapshots && snapshots.length === 0 && (
+                <div className="ui-empty-state mt-3">
+                  Снапшоты не найдены. Попробуйте изменить `sprintId` или сохраните новый.
+                </div>
+              )}
 
               {snapshots.length > 0 && (
                 <div className="mt-3 grid gap-2 text-sm">
@@ -589,28 +617,28 @@ export default function App() {
                     >
                       <div>
                         <span className="font-semibold">{item.name}</span>{" "}
-                        <span className="text-slate-500 dark:text-slate-400">
+                        <span className="ui-text-secondary">
                           {item.sprintId} · {item.isActive ? "active" : "inactive"}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          className="rounded-full border border-slate-500/40 px-3 py-1 text-xs"
+                          className="ui-btn-sm"
                           onClick={() => handleApplySnapshot(item._id)}
                         >
                           Применить
                         </button>
                         <button
                           type="button"
-                          className="rounded-full border border-slate-500/40 px-3 py-1 text-xs"
+                          className="ui-btn-sm"
                           onClick={() => handleActivateSnapshot(item._id)}
                         >
                           Активировать
                         </button>
                         <button
                           type="button"
-                          className="rounded-full border border-slate-500/40 px-3 py-1 text-xs"
+                          className="ui-btn-sm ui-btn-danger"
                           onClick={() => handleDeleteSnapshot(item._id)}
                         >
                           Удалить
@@ -621,11 +649,64 @@ export default function App() {
                 </div>
               )}
             </div>
-          )}
-        </section>
+          </section>
+        )}
 
         {data && (
           <div className="flex flex-col gap-3">
+            <div className="ui-card flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Календарь задач</h2>
+                <p className="ui-muted">Перетаскивайте задачи и фиксируйте итоговое расположение в снапшоте.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="ui-btn" onClick={handleResetTaskLayout}>
+                  Сбросить расположение
+                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    className="ui-btn bg-slate-100 dark:bg-slate-800 dark:border-slate-600"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setScreenshotMenuOpen((v) => !v);
+                    }}
+                  >
+                    Сохранить скриншот
+                  </button>
+                  {screenshotMenuOpen && (
+                    <div
+                      className="absolute left-0 top-full z-30 mt-1 flex min-w-32 flex-col rounded-lg border border-slate-500/30 bg-white py-1 shadow-lg dark:bg-slate-800 dark:border-slate-600"
+                      role="menu"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        className="px-4 py-2 text-left text-sm transition-colors duration-150 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 dark:hover:bg-slate-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSaveScreenshot("png");
+                          setScreenshotMenuOpen(false);
+                        }}
+                      >
+                        PNG
+                      </button>
+                      <button
+                        type="button"
+                        className="px-4 py-2 text-left text-sm transition-colors duration-150 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 dark:hover:bg-slate-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSaveScreenshot("jpeg");
+                          setScreenshotMenuOpen(false);
+                        }}
+                      >
+                        JPG
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
             <div
               ref={calendarRef}
               className="rounded-2xl border border-slate-500/30 bg-white/80 p-4 shadow-lg dark:bg-slate-900/50"
@@ -642,69 +723,35 @@ export default function App() {
                 onTaskStartDatesChange={setTaskStartDates}
               />
             </div>
-            <div className="relative flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded-full border border-slate-500/40 bg-slate-100 px-4 py-2 text-sm dark:bg-slate-800 dark:border-slate-600"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setScreenshotMenuOpen((v) => !v);
-                }}
-              >
-                Сохранить скриншот
-              </button>
-              {screenshotMenuOpen && (
-                <div
-                  className="absolute left-0 top-full z-30 mt-1 flex flex-col rounded-lg border border-slate-500/30 bg-white py-1 shadow-lg dark:bg-slate-800 dark:border-slate-600"
-                  role="menu"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    type="button"
-                    className="px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSaveScreenshot("png");
-                      setScreenshotMenuOpen(false);
-                    }}
-                  >
-                    PNG
-                  </button>
-                  <button
-                    type="button"
-                    className="px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSaveScreenshot("jpeg");
-                      setScreenshotMenuOpen(false);
-                    }}
-                  >
-                    JPG
-                  </button>
-                </div>
-              )}
-            </div>
           </div>
         )}
 
-        {!data && (
-          <div className="rounded-2xl border border-dashed border-slate-500/40 bg-white/50 p-6 text-sm text-slate-500 dark:bg-slate-900/40 dark:text-slate-400">
+        {isLoading && (
+          <div className="rounded-2xl border border-slate-500/20 bg-white/60 p-6 dark:bg-slate-900/40">
+            <div className="ui-skeleton h-8 w-64" />
+            <div className="mt-3 ui-skeleton h-60 w-full" />
+            <div className="mt-3 ui-skeleton h-4 w-48" />
+          </div>
+        )}
+
+        {!data && !isLoading && (
+          <div className="rounded-2xl border border-dashed border-slate-500/40 bg-white/50 p-6 text-sm ui-text-secondary dark:bg-slate-900/40">
             Сначала загрузите XLSX, чтобы увидеть график.
           </div>
         )}
 
         <UploadPanel onFileAccepted={handleUpload} isLoading={isLoading} error={error} />
 
-        <section className="rounded-2xl border border-slate-500/20 bg-white/70 p-4 shadow-sm dark:bg-slate-900/50">
+        <section className="ui-card">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold">Спринты</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
+              <p className="ui-muted">
                 Укажите спринты и периоды — календарь начнется со стартового спринта.
               </p>
             </div>
             <button
-              className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+              className="ui-btn"
               onClick={addSprint}
             >
               Добавить спринт
@@ -712,7 +759,7 @@ export default function App() {
           </div>
 
           {sprints.length === 0 && (
-            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-4 ui-muted">
               Пока нет спринтов. Добавьте хотя бы один для точной шкалы.
             </p>
           )}
@@ -724,7 +771,7 @@ export default function App() {
                 className="grid gap-3 rounded-xl border border-slate-500/20 p-3 md:grid-cols-[1.2fr_0.8fr_0.8fr_auto_auto]"
               >
                 <input
-                  className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  className="ui-input"
                   placeholder="Название спринта"
                   value={sprint.name}
                   onChange={(event) =>
@@ -732,7 +779,7 @@ export default function App() {
                   }
                 />
                 <input
-                  className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  className="ui-input"
                   type="date"
                   lang="ru"
                   value={sprint.start}
@@ -741,7 +788,7 @@ export default function App() {
                   }
                 />
                 <input
-                  className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  className="ui-input"
                   type="date"
                   lang="ru"
                   value={sprint.end}
@@ -750,17 +797,17 @@ export default function App() {
                   }
                 />
                 <button
-                  className={`rounded-full border px-3 py-2 text-sm ${
+                  className={`ui-btn ${
                     startSprintId === sprint.id
-                      ? "border-purple-400 text-purple-300"
-                      : "border-slate-500/40"
+                      ? "border-purple-500 bg-purple-50 text-purple-700 dark:border-purple-400 dark:bg-purple-900/30 dark:text-purple-300"
+                      : ""
                   }`}
                   onClick={() => setStartSprintId(sprint.id)}
                 >
                   Стартовый
                 </button>
                 <button
-                  className="rounded-full border border-slate-500/40 px-3 py-2 text-sm"
+                  className="ui-btn ui-btn-danger"
                   onClick={() => removeSprint(sprint.id)}
                 >
                   Удалить
@@ -770,18 +817,18 @@ export default function App() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-slate-500/20 bg-white/70 p-4 shadow-sm dark:bg-slate-900/50">
+        <section className="ui-card">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold">Праздничные и релизные дни</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
+              <p className="ui-muted">
                 Праздники скрываются из календаря; день релиза выделяется золотистым.
               </p>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <select
-              className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+              className="ui-input"
               value={dateMarkerType}
               onChange={(e) => setDateMarkerType(e.target.value as "holiday" | "release")}
             >
@@ -789,7 +836,7 @@ export default function App() {
               <option value="release">День релиза</option>
             </select>
             <input
-              className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+              className="ui-input"
               type="date"
               lang="ru"
               value={holidayInput}
@@ -797,7 +844,7 @@ export default function App() {
             />
             <button
               type="button"
-              className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+              className="ui-btn"
               onClick={() => {
                 if (!holidayInput) return;
                 const key = holidayInput.trim();
@@ -816,16 +863,16 @@ export default function App() {
           </div>
           {holidays.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
-              <span className="text-xs text-slate-500 dark:text-slate-400">Праздники:</span>
+              <span className="ui-text-caption">Праздники:</span>
               {holidays.map((date) => (
                 <span
                   key={`h-${date}`}
-                  className="inline-flex items-center gap-1 rounded-full border border-slate-500/20 bg-slate-100 px-3 py-1 text-sm dark:bg-slate-800 dark:border-slate-600"
+                  className="ui-chip-neutral"
                 >
                   {date}
                   <button
                     type="button"
-                    className="ml-1 rounded-full p-0.5 hover:bg-slate-300 dark:hover:bg-slate-600"
+                    className="ui-chip-neutral-action"
                     onClick={() => setHolidays((prev) => prev.filter((d) => d !== date))}
                     aria-label={`Удалить ${date}`}
                   >
@@ -837,16 +884,16 @@ export default function App() {
           )}
           {releaseDates.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">
-              <span className="text-xs text-slate-500 dark:text-slate-400">Релизы:</span>
+              <span className="ui-text-caption">Релизы:</span>
               {releaseDates.map((date) => (
                 <span
                   key={`r-${date}`}
-                  className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-50 px-3 py-1 text-sm dark:bg-amber-900/20 dark:border-amber-600/40"
+                  className="ui-chip-warning"
                 >
                   {date}
                   <button
                     type="button"
-                    className="ml-1 rounded-full p-0.5 hover:bg-amber-200 dark:hover:bg-amber-700"
+                    className="ui-chip-warning-action"
                     onClick={() => setReleaseDates((prev) => prev.filter((d) => d !== date))}
                     aria-label={`Удалить ${date}`}
                   >
@@ -859,16 +906,16 @@ export default function App() {
         </section>
 
         {data && (
-          <section className="rounded-2xl border border-slate-500/20 bg-white/70 p-4 shadow-sm dark:bg-slate-900/50">
+          <section className="ui-card">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">Кастомные задачи</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
+                <p className="ui-muted">
                   Добавляйте дежурства и отпуска вручную.
                 </p>
               </div>
               <button
-                className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                className="ui-btn"
                 onClick={addCustomTask}
               >
                 Добавить задачу
@@ -877,7 +924,7 @@ export default function App() {
 
           <div className="mt-4 grid gap-3 md:grid-cols-[1fr_0.9fr_0.9fr_0.9fr]">
               <select
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                className="ui-input"
                 value={taskDraft.assignee}
                 onChange={(event) => updateTaskDraft({ assignee: event.target.value })}
               >
@@ -895,7 +942,7 @@ export default function App() {
                 ))}
               </select>
               <select
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                className="ui-input"
                 value={taskDraft.type}
                 onChange={(event) =>
                   updateTaskDraft({ type: event.target.value as CustomTaskType })
@@ -912,21 +959,21 @@ export default function App() {
                 </option>
               </select>
               <input
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                className="ui-input"
                 type="date"
                 lang="ru"
                 value={taskDraft.start}
                 onChange={(event) => updateTaskDraft({ start: event.target.value })}
               />
               <input
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                className="ui-input"
                 type="date"
                 lang="ru"
                 value={taskDraft.end}
                 onChange={(event) => updateTaskDraft({ end: event.target.value })}
               />
             </div>
-            <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+            <div className="mt-3 ui-text-caption">
               Длительность рассчитывается автоматически по рабочим дням между датами (выходные не учитываются).
             </div>
 
@@ -939,12 +986,12 @@ export default function App() {
                   >
                     <div>
                       <span className="font-semibold">{task.assignee}</span>{" "}
-                      <span className="text-slate-500 dark:text-slate-400">
+                      <span className="ui-text-secondary">
                         {task.title} · {task.start} → {task.end} · {task.durationDays}д
                       </span>
                     </div>
                     <button
-                      className="rounded-full border border-slate-500/40 px-3 py-1 text-xs"
+                      className="ui-btn-sm ui-btn-danger"
                       onClick={() => removeCustomTask(task.id)}
                     >
                       Удалить
@@ -972,15 +1019,15 @@ export default function App() {
               estimate: data.taskEstimates?.[id] ?? null
             }));
           return taskList.length > 0 ? (
-            <section className="rounded-2xl border border-slate-500/20 bg-white/70 p-4 shadow-sm dark:bg-slate-900/50">
+            <section className="ui-card">
               <h2 className="text-lg font-semibold">Список задач из файла</h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              <p className="mt-1 ui-muted">
                 Задачи, распарсенные из загруженного XLSX.
               </p>
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full min-w-[500px] border-collapse text-sm">
                   <thead>
-                    <tr className="border-b border-slate-500/30 text-left text-slate-600 dark:text-slate-400">
+                    <tr className="ui-table-head">
                       <th className="py-2 pr-4 font-medium">ID</th>
                       <th className="py-2 pr-4 font-medium">Тип</th>
                       <th className="py-2 pr-4 font-medium">Заголовок</th>
@@ -991,7 +1038,7 @@ export default function App() {
                     {taskList.map((task) => (
                       <tr
                         key={task.id}
-                        className="border-b border-slate-500/10 text-slate-700 dark:text-slate-300"
+                        className="ui-table-row"
                       >
                         <td className="py-2 pr-4 font-mono text-xs">{task.id}</td>
                         <td className="py-2 pr-4">{task.type ?? "—"}</td>
@@ -1011,7 +1058,7 @@ export default function App() {
         })()}
 
         {!data && !isLoading && (
-          <div className="text-sm text-slate-500 dark:text-slate-400">
+          <div className="text-sm ui-text-secondary">
             Поддерживаются колонки: Issue ID, Assignee, ownestimate, Period, Status,
             created, updated, Release, QA, SP.
           </div>

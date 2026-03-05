@@ -20,7 +20,6 @@ export type AuthResponse = {
 export type RegisterPayload = {
   email: string;
   password: string;
-  name: string;
 };
 
 export type LoginPayload = {

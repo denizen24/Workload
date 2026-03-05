@@ -50,9 +50,10 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    const fallbackName = email.split("@")[0] || "user";
     const user = await this.userModel.create({
       email,
-      name: dto.name.trim(),
+      name: fallbackName,
       passwordHash
     });
 

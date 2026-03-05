@@ -28,14 +28,14 @@ export function UploadPanel({ onFileAccepted, isLoading, error }: UploadPanelPro
         className="hidden"
       />
       <button
-        className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+        className="ui-btn"
         onClick={() => inputRef.current?.click()}
         disabled={isLoading}
       >
-        {isLoading ? "Загрузка..." : "Загрузить"}
+        {isLoading ? "Загрузка файла..." : "Загрузить"}
       </button>
-      <span className="text-xs text-slate-500">Лист: issues</span>
-      {error && <span className="text-xs text-red-400">{error}</span>}
+      <span className="ui-text-caption">Лист: issues</span>
+      {error && <span className="text-sm text-red-600 dark:text-red-400">{error}</span>}
     </div>
   );
 }

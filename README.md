@@ -87,6 +87,25 @@ npm run smoke:auth-snapshots
 npm run smoke:compose:auth-snapshots
 ```
 
+## Мини UI-контракт (frontend)
+
+Для единообразия интерфейса переиспользуйте классы из `apps/frontend/src/index.css`:
+
+- `ui-card` — карточка секции
+- `ui-btn` — стандартная кнопка
+- `ui-btn ui-btn-primary` — primary action
+- `ui-btn-sm` — компактная action-кнопка
+- `ui-btn-danger` — destructive action
+- `ui-input` — input/select
+- `ui-muted` — вторичный текст
+- `ui-skeleton` — skeleton-loading
+- `ui-segmented`, `ui-segment-btn`, `ui-segment-btn-active` — segmented control
+- `ui-spinner` — индикатор загрузки в кнопках
+
+Детальная спецификация и процесс-проверка:
+- `apps/frontend/src/theme/uiContract.md`
+- `apps/frontend/src/theme/uiChecklist.md`
+
 ## Сброс пароля пользователя
 
 Пароль из bcrypt-хэша восстановить нельзя. Чтобы задать пользователю новый пароль (например, если забыт), из корня репозитория:

@@ -117,6 +117,7 @@ export default function App() {
   const [isSnapshotsBusy, setIsSnapshotsBusy] = useState(false);
   const [hasLoadedSnapshots, setHasLoadedSnapshots] = useState(false);
   const [taskStartDates, setTaskStartDates] = useState<Record<string, string>>({});
+  const [isPlanningPreviewOpen, setIsPlanningPreviewOpen] = useState(false);
 
   const handleSaveScreenshot = useCallback(
     async (format: "png" | "jpeg") => {
@@ -206,6 +207,17 @@ export default function App() {
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, [screenshotMenuOpen]);
+
+  useEffect(() => {
+    if (!isPlanningPreviewOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsPlanningPreviewOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isPlanningPreviewOpen]);
 
   useEffect(() => {
     if (!isAuthenticated()) return;
@@ -776,6 +788,34 @@ export default function App() {
           </div>
         )}
 
+        {!data && !isLoading && !currentUser && (
+          <section className="ui-card">
+            <div className="flex flex-col gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Пример планирования нагрузки</h2>
+                <p className="ui-muted">Нажмите на миниатюру, чтобы открыть изображение на весь экран.</p>
+              </div>
+              <button
+                type="button"
+                className="group relative overflow-hidden rounded-xl border border-slate-500/30"
+                onClick={() => setIsPlanningPreviewOpen(true)}
+                aria-label="Открыть пример планирования нагрузки"
+              >
+                <img
+                  src="/workload-planning-example.png"
+                  alt="Пример планирования нагрузки разработчиков"
+                  className="h-auto w-full transition-transform duration-200 group-hover:scale-[1.01]"
+                />
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-900/20">
+                  <span className="rounded-full bg-black/50 px-3 py-1 text-xs text-white">
+                    Нажми, чтобы увеличить
+                  </span>
+                </div>
+              </button>
+            </div>
+          </section>
+        )}
+
         <UploadPanel onFileAccepted={handleUpload} isLoading={isLoading} error={error} />
 
         {data && (
@@ -1164,6 +1204,29 @@ export default function App() {
         })()}
 
       </div>
+
+      {isPlanningPreviewOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Пример планирования нагрузки"
+        >
+          <button
+            type="button"
+            className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xl leading-none text-slate-900 transition-colors hover:bg-white"
+            onClick={() => setIsPlanningPreviewOpen(false)}
+            aria-label="Закрыть"
+          >
+            ×
+          </button>
+          <img
+            src="/workload-planning-example.png"
+            alt="Пример планирования нагрузки разработчиков"
+            className="max-h-[92vh] max-w-[96vw] rounded-lg border border-white/20 object-contain shadow-2xl"
+          />
+        </div>
+      )}
     </div>
   );
 }

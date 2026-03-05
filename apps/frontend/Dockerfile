@@ -6,6 +6,7 @@ RUN npm ci --no-audit --no-fund
 
 COPY index.html tsconfig.json vite.config.ts tailwind.config.ts postcss.config.cjs ./
 COPY src ./src
+COPY public ./public
 RUN npm run build
 
 FROM nginx:1.27-alpine

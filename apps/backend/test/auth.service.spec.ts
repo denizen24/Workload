@@ -64,8 +64,7 @@ describe("AuthService", () => {
 
     const result = await service.register({
       email: "USER@EXAMPLE.COM",
-      password: "password123",
-      name: "User Name"
+      password: "password123"
     });
 
     expect(model.exists).toHaveBeenCalledWith({ email: "user@example.com" });
@@ -86,8 +85,7 @@ describe("AuthService", () => {
     await expect(
       service.register({
         email: "user@example.com",
-        password: "password123",
-        name: "User Name"
+        password: "password123"
       })
     ).rejects.toBeInstanceOf(ConflictException);
   });

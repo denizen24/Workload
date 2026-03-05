@@ -66,6 +66,7 @@ type SnapshotLayoutPayload = {
 };
 
 export default function App() {
+  const planningPreviewSrc = `${import.meta.env.BASE_URL}workload-planning-example.png`;
   const [data, setData] = useState<WorkloadResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,31 +83,42 @@ export default function App() {
     type: CustomTaskType;
     start: string;
     end: string;
+    taskIdentifier: string;
+    taskKind: string;
+    taskTitle: string;
+    estimateDays: string;
   }>({
     assignee: "",
     type: "duty",
     start: "",
-    end: ""
+    end: "",
+    taskIdentifier: "",
+    taskKind: "",
+    taskTitle: "",
+    estimateDays: ""
   });
   const typeLabel: Record<CustomTaskType, string> = {
     duty: "Дежурство",
     vacation: "Отпуск",
-    sick: "Болезнь"
+    sick: "Болезнь",
+    task: "Задача"
   };
+  const taskKindOptions = ["FEATURE / TECH TASK", "BUG", "TASK"];
 
   const calendarRef = useRef<HTMLDivElement>(null);
   const [screenshotMenuOpen, setScreenshotMenuOpen] = useState(false);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authEmail, setAuthEmail] = useState("");
   const [authPassword, setAuthPassword] = useState("");
-  const [authName, setAuthName] = useState("");
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isAuthBusy, setIsAuthBusy] = useState(false);
   const [snapshotSprintId, setSnapshotSprintId] = useState("");
   const [snapshotName, setSnapshotName] = useState("");
   const [snapshots, setSnapshots] = useState<SnapshotEntity[]>([]);
   const [isSnapshotsBusy, setIsSnapshotsBusy] = useState(false);
+  const [hasLoadedSnapshots, setHasLoadedSnapshots] = useState(false);
   const [taskStartDates, setTaskStartDates] = useState<Record<string, string>>({});
+  const [isPlanningPreviewOpen, setIsPlanningPreviewOpen] = useState(false);
 
   const handleSaveScreenshot = useCallback(
     async (format: "png" | "jpeg") => {
@@ -198,6 +210,17 @@ export default function App() {
   }, [screenshotMenuOpen]);
 
   useEffect(() => {
+    if (!isPlanningPreviewOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsPlanningPreviewOpen(false);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isPlanningPreviewOpen]);
+
+  useEffect(() => {
     if (!isAuthenticated()) return;
     me()
       .then((user) => setCurrentUser(user))
@@ -282,7 +305,22 @@ export default function App() {
       setError("Некорректные даты");
       return;
     }
-    const durationDays = countWorkingDays(startDate, endDate);
+    const isTaskType = taskDraft.type === "task";
+    if (isTaskType) {
+      if (!taskDraft.taskIdentifier.trim() || !taskDraft.taskKind.trim() || !taskDraft.taskTitle.trim()) {
+        setError("Для типа \"Задача\" заполните идентификатор, тип и заголовок");
+        return;
+      }
+      const estimate = Number(taskDraft.estimateDays);
+      if (!Number.isFinite(estimate) || estimate <= 0) {
+        setError("Для типа \"Задача\" укажите корректную оценку (в днях)");
+        return;
+      }
+    }
+    const estimateDays = Number(taskDraft.estimateDays);
+    const durationDays = isTaskType && Number.isFinite(estimateDays) && estimateDays > 0
+      ? Math.max(1, Math.ceil(estimateDays))
+      : countWorkingDays(startDate, endDate);
     const id = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
     setCustomTasks((prev) => [
       ...prev,
@@ -293,9 +331,20 @@ export default function App() {
         start: taskDraft.start,
         end: taskDraft.end,
         durationDays,
-        title: typeLabel[taskDraft.type]
+        title: isTaskType ? taskDraft.taskTitle.trim() : typeLabel[taskDraft.type],
+        taskIdentifier: isTaskType ? taskDraft.taskIdentifier.trim() : undefined,
+        taskKind: isTaskType ? taskDraft.taskKind.trim() : undefined,
+        estimateDays: isTaskType ? Number(taskDraft.estimateDays) : undefined
       }
     ]);
+    setTaskDraft((prev) => ({
+      ...prev,
+      taskIdentifier: "",
+      taskKind: "",
+      taskTitle: "",
+      estimateDays: ""
+    }));
+    setError(null);
   };
 
   const removeCustomTask = (id: string) => {
@@ -305,6 +354,10 @@ export default function App() {
   const removeSprint = (id: string) => {
     setSprints((prev) => prev.filter((sprint) => sprint.id !== id));
     setStartSprintId((current) => (current === id ? null : current));
+  };
+
+  const handleResetTaskLayout = () => {
+    setTaskStartDates({});
   };
 
   const buildSnapshotLayout = useCallback(
@@ -342,8 +395,7 @@ export default function App() {
         authMode === "register"
           ? await register({
               email: authEmail,
-              password: authPassword,
-              name: authName
+              password: authPassword
             })
           : await login({
               email: authEmail,
@@ -367,6 +419,7 @@ export default function App() {
     } finally {
       setCurrentUser(null);
       setSnapshots([]);
+      setHasLoadedSnapshots(false);
     }
   };
 
@@ -376,6 +429,7 @@ export default function App() {
     try {
       const result = await getSnapshots(snapshotSprintId || undefined);
       setSnapshots(result);
+      setHasLoadedSnapshots(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка загрузки снапшотов");
     } finally {
@@ -403,6 +457,7 @@ export default function App() {
       });
       await handleLoadSnapshots();
       setSnapshotName("");
+      setHasLoadedSnapshots(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка сохранения снапшота");
     } finally {
@@ -455,45 +510,51 @@ export default function App() {
         <header className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">Workload Board</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Визуализация нагрузки разработчиков в формате Miro Gantt
+            <p className="ui-muted">
+              Визуализация нагрузки разработчиков
+            </p>
+            <p className="mt-1 ui-text-caption">
+              Сервис для планирования и балансировки нагрузки команды: загрузка задач из YouTrack (XLSX),
+              визуальный календарь занятости, ручные корректировки и сохранение сценариев в снапшоты.
             </p>
           </div>
           <button
-            className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+            className="ui-btn"
             onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
             {theme === "dark" ? "Светлая тема" : "Темная тема"}
           </button>
         </header>
 
-        <section className="rounded-2xl border border-slate-500/20 bg-white/70 p-4 shadow-sm dark:bg-slate-900/50">
+        <section className="ui-card">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold">Авторизация и снапшоты</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Режим хранения: {getSnapshotStorageMode() === "remote" ? "серверный" : "локальный"}.
+              <h2 className="text-lg font-semibold">Авторизация</h2>
+              <p className="ui-muted">
+                Авторизация нужна, чтобы сохранять таблицы нагрузки и работать со снапшотами.
               </p>
             </div>
             {currentUser ? (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-slate-500 dark:text-slate-400">
+                <span className="ui-muted">
                   {currentUser.email}
                 </span>
                 <button
                   type="button"
-                  className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                  className="ui-btn"
                   onClick={handleLogout}
                 >
                   Выйти
                 </button>
               </div>
             ) : (
-              <div className="flex gap-2">
+              <div className="ui-segmented">
                 <button
                   type="button"
-                  className={`rounded-full border px-4 py-2 text-sm ${
-                    authMode === "login" ? "border-purple-400 text-purple-300" : "border-slate-500/40"
+                  className={`ui-segment-btn ${
+                    authMode === "login"
+                      ? "ui-segment-btn-active"
+                      : ""
                   }`}
                   onClick={() => setAuthMode("login")}
                 >
@@ -501,10 +562,10 @@ export default function App() {
                 </button>
                 <button
                   type="button"
-                  className={`rounded-full border px-4 py-2 text-sm ${
+                  className={`ui-segment-btn ${
                     authMode === "register"
-                      ? "border-purple-400 text-purple-300"
-                      : "border-slate-500/40"
+                      ? "ui-segment-btn-active"
+                      : ""
                   }`}
                   onClick={() => setAuthMode("register")}
                 >
@@ -515,70 +576,90 @@ export default function App() {
           </div>
 
           {!currentUser && (
-            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+            <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto]">
               <input
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                className="ui-input"
                 placeholder="Email"
                 value={authEmail}
                 onChange={(event) => setAuthEmail(event.target.value)}
               />
               <input
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                className="ui-input"
                 placeholder="Пароль"
                 type="password"
                 value={authPassword}
                 onChange={(event) => setAuthPassword(event.target.value)}
               />
-              <input
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
-                placeholder="Имя (для регистрации)"
-                value={authName}
-                onChange={(event) => setAuthName(event.target.value)}
-                disabled={authMode === "login"}
-              />
               <button
                 type="button"
-                className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                className="ui-btn ui-btn-primary"
                 disabled={isAuthBusy}
                 onClick={handleAuthSubmit}
               >
-                {isAuthBusy ? "..." : authMode === "login" ? "Войти" : "Создать аккаунт"}
+                {isAuthBusy && <span className="ui-spinner" aria-hidden />}
+                {isAuthBusy ? "Выполняю..." : authMode === "login" ? "Войти" : "Создать аккаунт"}
               </button>
             </div>
           )}
+        </section>
 
-          {currentUser && (
+        {currentUser && (
+          <section className="ui-card">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Снапшоты и сохранение</h2>
+                <p className="ui-muted">
+                  Режим хранения: {getSnapshotStorageMode() === "remote" ? "серверный" : "локальный"}.
+                </p>
+              </div>
+            </div>
             <div className="mt-4">
               <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto_auto]">
                 <input
-                  className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  className="ui-input"
                   placeholder="sprintId (например sprint-1)"
                   value={snapshotSprintId}
                   onChange={(event) => setSnapshotSprintId(event.target.value)}
                 />
                 <input
-                  className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  className="ui-input"
                   placeholder="Название снапшота"
                   value={snapshotName}
                   onChange={(event) => setSnapshotName(event.target.value)}
                 />
                 <button
                   type="button"
-                  className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                  className="ui-btn ui-btn-primary"
                   disabled={isSnapshotsBusy}
                   onClick={handleSaveSnapshot}
                 >
+                  {isSnapshotsBusy && <span className="ui-spinner" aria-hidden />}
                   Сохранить
                 </button>
                 <button
                   type="button"
-                  className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                  className="ui-btn"
                   disabled={isSnapshotsBusy}
                   onClick={handleLoadSnapshots}
                 >
+                  {isSnapshotsBusy && <span className="ui-spinner" aria-hidden />}
                   Загрузить список
                 </button>
               </div>
+
+              {isSnapshotsBusy && snapshots.length === 0 && (
+                <div className="mt-3 grid gap-2">
+                  <div className="ui-skeleton h-10 w-full" />
+                  <div className="ui-skeleton h-10 w-full" />
+                  <div className="ui-skeleton h-10 w-full" />
+                </div>
+              )}
+
+              {!isSnapshotsBusy && hasLoadedSnapshots && snapshots.length === 0 && (
+                <div className="ui-empty-state mt-3">
+                  Снапшоты не найдены. Попробуйте изменить `sprintId` или сохраните новый.
+                </div>
+              )}
 
               {snapshots.length > 0 && (
                 <div className="mt-3 grid gap-2 text-sm">
@@ -589,28 +670,28 @@ export default function App() {
                     >
                       <div>
                         <span className="font-semibold">{item.name}</span>{" "}
-                        <span className="text-slate-500 dark:text-slate-400">
+                        <span className="ui-text-secondary">
                           {item.sprintId} · {item.isActive ? "active" : "inactive"}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button
                           type="button"
-                          className="rounded-full border border-slate-500/40 px-3 py-1 text-xs"
+                          className="ui-btn-sm"
                           onClick={() => handleApplySnapshot(item._id)}
                         >
                           Применить
                         </button>
                         <button
                           type="button"
-                          className="rounded-full border border-slate-500/40 px-3 py-1 text-xs"
+                          className="ui-btn-sm"
                           onClick={() => handleActivateSnapshot(item._id)}
                         >
                           Активировать
                         </button>
                         <button
                           type="button"
-                          className="rounded-full border border-slate-500/40 px-3 py-1 text-xs"
+                          className="ui-btn-sm ui-btn-danger"
                           onClick={() => handleDeleteSnapshot(item._id)}
                         >
                           Удалить
@@ -621,11 +702,64 @@ export default function App() {
                 </div>
               )}
             </div>
-          )}
-        </section>
+          </section>
+        )}
 
         {data && (
           <div className="flex flex-col gap-3">
+            <div className="ui-card flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Календарь задач</h2>
+                <p className="ui-muted">Перетаскивайте задачи и фиксируйте итоговое расположение в снапшоте.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="ui-btn" onClick={handleResetTaskLayout}>
+                  Сбросить расположение
+                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    className="ui-btn bg-slate-100 dark:bg-slate-800 dark:border-slate-600"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setScreenshotMenuOpen((v) => !v);
+                    }}
+                  >
+                    Сохранить скриншот
+                  </button>
+                  {screenshotMenuOpen && (
+                    <div
+                      className="absolute left-0 top-full z-30 mt-1 flex min-w-32 flex-col rounded-lg border border-slate-500/30 bg-white py-1 shadow-lg dark:bg-slate-800 dark:border-slate-600"
+                      role="menu"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        className="px-4 py-2 text-left text-sm transition-colors duration-150 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 dark:hover:bg-slate-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSaveScreenshot("png");
+                          setScreenshotMenuOpen(false);
+                        }}
+                      >
+                        PNG
+                      </button>
+                      <button
+                        type="button"
+                        className="px-4 py-2 text-left text-sm transition-colors duration-150 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 dark:hover:bg-slate-700"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSaveScreenshot("jpeg");
+                          setScreenshotMenuOpen(false);
+                        }}
+                      >
+                        JPG
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
             <div
               ref={calendarRef}
               className="rounded-2xl border border-slate-500/30 bg-white/80 p-4 shadow-lg dark:bg-slate-900/50"
@@ -642,69 +776,62 @@ export default function App() {
                 onTaskStartDatesChange={setTaskStartDates}
               />
             </div>
-            <div className="relative flex items-center gap-2">
-              <button
-                type="button"
-                className="rounded-full border border-slate-500/40 bg-slate-100 px-4 py-2 text-sm dark:bg-slate-800 dark:border-slate-600"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setScreenshotMenuOpen((v) => !v);
-                }}
-              >
-                Сохранить скриншот
-              </button>
-              {screenshotMenuOpen && (
-                <div
-                  className="absolute left-0 top-full z-30 mt-1 flex flex-col rounded-lg border border-slate-500/30 bg-white py-1 shadow-lg dark:bg-slate-800 dark:border-slate-600"
-                  role="menu"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    type="button"
-                    className="px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSaveScreenshot("png");
-                      setScreenshotMenuOpen(false);
-                    }}
-                  >
-                    PNG
-                  </button>
-                  <button
-                    type="button"
-                    className="px-4 py-2 text-left text-sm hover:bg-slate-100 dark:hover:bg-slate-700"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleSaveScreenshot("jpeg");
-                      setScreenshotMenuOpen(false);
-                    }}
-                  >
-                    JPG
-                  </button>
-                </div>
-              )}
-            </div>
+          </div>
+        )}
+
+        {isLoading && (
+          <div className="rounded-2xl border border-slate-500/20 bg-white/60 p-6 dark:bg-slate-900/40">
+            <div className="ui-skeleton h-8 w-64" />
+            <div className="mt-3 ui-skeleton h-60 w-full" />
+            <div className="mt-3 ui-skeleton h-4 w-48" />
           </div>
         )}
 
         {!data && (
-          <div className="rounded-2xl border border-dashed border-slate-500/40 bg-white/50 p-6 text-sm text-slate-500 dark:bg-slate-900/40 dark:text-slate-400">
-            Сначала загрузите XLSX, чтобы увидеть график.
-          </div>
+          <section className="ui-card border-dashed border-slate-500/40 bg-white/50 dark:bg-slate-900/40">
+            <div className="flex flex-col gap-3">
+              <p className="text-sm ui-text-secondary">
+                В текущей итерации поддерживается только загрузка списка задач из YouTrack в формате файла XLSX.
+              </p>
+              <UploadPanel onFileAccepted={handleUpload} isLoading={isLoading} error={error} />
+            </div>
+          </section>
         )}
 
-        <UploadPanel onFileAccepted={handleUpload} isLoading={isLoading} error={error} />
+        {!data && !isLoading && !currentUser && (
+          <section className="ui-card">
+            <div className="flex flex-col gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">Пример, как может выглядеть ваш календарь планирования</h2>
+                <p className="ui-muted">Нажмите на миниатюру, чтобы открыть изображение на весь экран.</p>
+              </div>
+              <button
+                type="button"
+                className="w-fit max-w-full overflow-hidden rounded-xl border border-slate-500/30"
+                onClick={() => setIsPlanningPreviewOpen(true)}
+                aria-label="Открыть пример календаря планирования"
+              >
+                <img
+                  src={planningPreviewSrc}
+                  alt="Пример календаря планирования нагрузки разработчиков"
+                  className="h-auto w-[340px] max-w-full bg-slate-100 object-contain dark:bg-slate-800"
+                />
+              </button>
+            </div>
+          </section>
+        )}
 
-        <section className="rounded-2xl border border-slate-500/20 bg-white/70 p-4 shadow-sm dark:bg-slate-900/50">
+        {data && (
+          <section className="ui-card">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold">Спринты</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
+              <p className="ui-muted">
                 Укажите спринты и периоды — календарь начнется со стартового спринта.
               </p>
             </div>
             <button
-              className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+              className="ui-btn"
               onClick={addSprint}
             >
               Добавить спринт
@@ -712,7 +839,7 @@ export default function App() {
           </div>
 
           {sprints.length === 0 && (
-            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+            <p className="mt-4 ui-muted">
               Пока нет спринтов. Добавьте хотя бы один для точной шкалы.
             </p>
           )}
@@ -724,7 +851,7 @@ export default function App() {
                 className="grid gap-3 rounded-xl border border-slate-500/20 p-3 md:grid-cols-[1.2fr_0.8fr_0.8fr_auto_auto]"
               >
                 <input
-                  className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  className="ui-input"
                   placeholder="Название спринта"
                   value={sprint.name}
                   onChange={(event) =>
@@ -732,7 +859,7 @@ export default function App() {
                   }
                 />
                 <input
-                  className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  className="ui-input"
                   type="date"
                   lang="ru"
                   value={sprint.start}
@@ -741,7 +868,7 @@ export default function App() {
                   }
                 />
                 <input
-                  className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                  className="ui-input"
                   type="date"
                   lang="ru"
                   value={sprint.end}
@@ -750,17 +877,17 @@ export default function App() {
                   }
                 />
                 <button
-                  className={`rounded-full border px-3 py-2 text-sm ${
+                  className={`ui-btn ${
                     startSprintId === sprint.id
-                      ? "border-purple-400 text-purple-300"
-                      : "border-slate-500/40"
+                      ? "border-purple-500 bg-purple-50 text-purple-700 dark:border-purple-400 dark:bg-purple-900/30 dark:text-purple-300"
+                      : ""
                   }`}
                   onClick={() => setStartSprintId(sprint.id)}
                 >
                   Стартовый
                 </button>
                 <button
-                  className="rounded-full border border-slate-500/40 px-3 py-2 text-sm"
+                  className="ui-btn ui-btn-danger"
                   onClick={() => removeSprint(sprint.id)}
                 >
                   Удалить
@@ -768,107 +895,110 @@ export default function App() {
               </div>
             ))}
           </div>
-        </section>
-
-        <section className="rounded-2xl border border-slate-500/20 bg-white/70 p-4 shadow-sm dark:bg-slate-900/50">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-semibold">Праздничные и релизные дни</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
-                Праздники скрываются из календаря; день релиза выделяется золотистым.
-              </p>
-            </div>
-          </div>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <select
-              className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
-              value={dateMarkerType}
-              onChange={(e) => setDateMarkerType(e.target.value as "holiday" | "release")}
-            >
-              <option value="holiday">Праздничный день</option>
-              <option value="release">День релиза</option>
-            </select>
-            <input
-              className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
-              type="date"
-              lang="ru"
-              value={holidayInput}
-              onChange={(e) => setHolidayInput(e.target.value)}
-            />
-            <button
-              type="button"
-              className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
-              onClick={() => {
-                if (!holidayInput) return;
-                const key = holidayInput.trim();
-                if (dateMarkerType === "holiday") {
-                  if (holidays.includes(key)) return;
-                  setHolidays((prev) => [...prev, key].sort());
-                } else {
-                  if (releaseDates.includes(key)) return;
-                  setReleaseDates((prev) => [...prev, key].sort());
-                }
-                setHolidayInput("");
-              }}
-            >
-              Добавить
-            </button>
-          </div>
-          {holidays.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <span className="text-xs text-slate-500 dark:text-slate-400">Праздники:</span>
-              {holidays.map((date) => (
-                <span
-                  key={`h-${date}`}
-                  className="inline-flex items-center gap-1 rounded-full border border-slate-500/20 bg-slate-100 px-3 py-1 text-sm dark:bg-slate-800 dark:border-slate-600"
-                >
-                  {date}
-                  <button
-                    type="button"
-                    className="ml-1 rounded-full p-0.5 hover:bg-slate-300 dark:hover:bg-slate-600"
-                    onClick={() => setHolidays((prev) => prev.filter((d) => d !== date))}
-                    aria-label={`Удалить ${date}`}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-          {releaseDates.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              <span className="text-xs text-slate-500 dark:text-slate-400">Релизы:</span>
-              {releaseDates.map((date) => (
-                <span
-                  key={`r-${date}`}
-                  className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-50 px-3 py-1 text-sm dark:bg-amber-900/20 dark:border-amber-600/40"
-                >
-                  {date}
-                  <button
-                    type="button"
-                    className="ml-1 rounded-full p-0.5 hover:bg-amber-200 dark:hover:bg-amber-700"
-                    onClick={() => setReleaseDates((prev) => prev.filter((d) => d !== date))}
-                    aria-label={`Удалить ${date}`}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
-        </section>
+          </section>
+        )}
 
         {data && (
-          <section className="rounded-2xl border border-slate-500/20 bg-white/70 p-4 shadow-sm dark:bg-slate-900/50">
+          <section className="ui-card">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Праздничные и релизные дни</h2>
+                <p className="ui-muted">
+                  Праздники скрываются из календаря; день релиза выделяется цветом на календаре.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <select
+                className="ui-input"
+                value={dateMarkerType}
+                onChange={(e) => setDateMarkerType(e.target.value as "holiday" | "release")}
+              >
+                <option value="holiday">Праздничный день</option>
+                <option value="release">День релиза</option>
+              </select>
+              <input
+                className="ui-input"
+                type="date"
+                lang="ru"
+                value={holidayInput}
+                onChange={(e) => setHolidayInput(e.target.value)}
+              />
+              <button
+                type="button"
+                className="ui-btn"
+                onClick={() => {
+                  if (!holidayInput) return;
+                  const key = holidayInput.trim();
+                  if (dateMarkerType === "holiday") {
+                    if (holidays.includes(key)) return;
+                    setHolidays((prev) => [...prev, key].sort());
+                  } else {
+                    if (releaseDates.includes(key)) return;
+                    setReleaseDates((prev) => [...prev, key].sort());
+                  }
+                  setHolidayInput("");
+                }}
+              >
+                Добавить
+              </button>
+            </div>
+            {holidays.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="ui-text-caption">Праздники:</span>
+                {holidays.map((date) => (
+                  <span
+                    key={`h-${date}`}
+                    className="ui-chip-neutral"
+                  >
+                    {date}
+                    <button
+                      type="button"
+                      className="ui-chip-neutral-action"
+                      onClick={() => setHolidays((prev) => prev.filter((d) => d !== date))}
+                      aria-label={`Удалить ${date}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {releaseDates.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <span className="ui-text-caption">Релизы:</span>
+                {releaseDates.map((date) => (
+                  <span
+                    key={`r-${date}`}
+                    className="ui-chip-warning"
+                  >
+                    {date}
+                    <button
+                      type="button"
+                      className="ui-chip-warning-action"
+                      onClick={() => setReleaseDates((prev) => prev.filter((d) => d !== date))}
+                      aria-label={`Удалить ${date}`}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {data && (
+          <section className="ui-card">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold">Кастомные задачи</h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Добавляйте дежурства и отпуска вручную.
+                <p className="ui-muted">
+                  Добавляйте дежурства, отпуска, больничные и отдельные задачи вручную.
                 </p>
               </div>
               <button
-                className="rounded-full border border-slate-500/40 px-4 py-2 text-sm"
+                className="ui-btn"
                 onClick={addCustomTask}
               >
                 Добавить задачу
@@ -877,7 +1007,7 @@ export default function App() {
 
           <div className="mt-4 grid gap-3 md:grid-cols-[1fr_0.9fr_0.9fr_0.9fr]">
               <select
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                className="ui-input"
                 value={taskDraft.assignee}
                 onChange={(event) => updateTaskDraft({ assignee: event.target.value })}
               >
@@ -895,7 +1025,7 @@ export default function App() {
                 ))}
               </select>
               <select
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                className="ui-input"
                 value={taskDraft.type}
                 onChange={(event) =>
                   updateTaskDraft({ type: event.target.value as CustomTaskType })
@@ -910,24 +1040,66 @@ export default function App() {
                 <option value="sick" className="dark:bg-slate-800 dark:text-slate-100">
                   Болезнь
                 </option>
+                <option value="task" className="dark:bg-slate-800 dark:text-slate-100">
+                  Задача
+                </option>
               </select>
               <input
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                className="ui-input"
                 type="date"
                 lang="ru"
                 value={taskDraft.start}
                 onChange={(event) => updateTaskDraft({ start: event.target.value })}
               />
               <input
-                className="rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100"
+                className="ui-input"
                 type="date"
                 lang="ru"
                 value={taskDraft.end}
                 onChange={(event) => updateTaskDraft({ end: event.target.value })}
               />
             </div>
-            <div className="mt-3 text-xs text-slate-500 dark:text-slate-400">
-              Длительность рассчитывается автоматически по рабочим дням между датами (выходные не учитываются).
+            {taskDraft.type === "task" && (
+              <div className="mt-3 grid gap-3 md:grid-cols-[1fr_1fr_1.4fr_0.8fr]">
+                <input
+                  className="ui-input"
+                  placeholder="Идентификатор задачи (например WL-123)"
+                  value={taskDraft.taskIdentifier}
+                  onChange={(event) => updateTaskDraft({ taskIdentifier: event.target.value })}
+                />
+                <select
+                  className="ui-input"
+                  value={taskDraft.taskKind}
+                  onChange={(event) => updateTaskDraft({ taskKind: event.target.value })}
+                >
+                  <option value="" className="dark:bg-slate-800 dark:text-slate-100">
+                    Тип задачи
+                  </option>
+                  {taskKindOptions.map((kind) => (
+                    <option key={kind} value={kind} className="dark:bg-slate-800 dark:text-slate-100">
+                      {kind}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="ui-input"
+                  placeholder="Заголовок задачи"
+                  value={taskDraft.taskTitle}
+                  onChange={(event) => updateTaskDraft({ taskTitle: event.target.value })}
+                />
+                <input
+                  className="ui-input"
+                  type="number"
+                  min="0.1"
+                  step="0.1"
+                  placeholder="Оценка, дн."
+                  value={taskDraft.estimateDays}
+                  onChange={(event) => updateTaskDraft({ estimateDays: event.target.value })}
+                />
+              </div>
+            )}
+            <div className="mt-3 ui-text-caption">
+              Для дежурств/отпусков/больничных длительность считается по рабочим дням; для типа "Задача" берется из оценки.
             </div>
 
             {customTasks.length > 0 && (
@@ -939,12 +1111,15 @@ export default function App() {
                   >
                     <div>
                       <span className="font-semibold">{task.assignee}</span>{" "}
-                      <span className="text-slate-500 dark:text-slate-400">
+                      <span className="ui-text-secondary">
+                        {task.taskIdentifier ? `${task.taskIdentifier} · ` : ""}
+                        {task.taskKind ? `${task.taskKind} · ` : ""}
                         {task.title} · {task.start} → {task.end} · {task.durationDays}д
+                        {task.estimateDays ? ` · оценка ${formatEstimate(task.estimateDays)}` : ""}
                       </span>
                     </div>
                     <button
-                      className="rounded-full border border-slate-500/40 px-3 py-1 text-xs"
+                      className="ui-btn-sm ui-btn-danger"
                       onClick={() => removeCustomTask(task.id)}
                     >
                       Удалить
@@ -957,30 +1132,51 @@ export default function App() {
         )}
 
         {data && (() => {
-          const taskIds = new Set<string>();
+          const taskMap = new Map<
+            string,
+            { id: string; title: string | null; type: string | null; estimate: number | null }
+          >();
+
           data.assignees.forEach((a) =>
             a.periods.forEach((p) =>
-              p.days.forEach((d) => d.tasks.forEach((t) => taskIds.add(t)))
+              p.days.forEach((d) =>
+                d.tasks.forEach((id) => {
+                  if (!taskMap.has(id)) {
+                    taskMap.set(id, {
+                      id,
+                      title: data.taskTitles?.[id] ?? null,
+                      type: data.taskTypes?.[id] ?? null,
+                      estimate: data.taskEstimates?.[id] ?? null
+                    });
+                  }
+                })
+              )
             )
           );
-          const taskList = Array.from(taskIds)
-            .sort((a, b) => a.localeCompare(b))
-            .map((id) => ({
-              id,
-              title: data.taskTitles?.[id] ?? null,
-              type: data.taskTypes?.[id] ?? null,
-              estimate: data.taskEstimates?.[id] ?? null
-            }));
+
+          customTasks
+            .filter((task) => task.type === "task" && task.taskIdentifier)
+            .forEach((task) => {
+              const id = task.taskIdentifier as string;
+              taskMap.set(id, {
+                id,
+                title: task.title ?? null,
+                type: task.taskKind ?? "TASK",
+                estimate: task.estimateDays ?? null
+              });
+            });
+
+          const taskList = Array.from(taskMap.values()).sort((a, b) => a.id.localeCompare(b.id));
           return taskList.length > 0 ? (
-            <section className="rounded-2xl border border-slate-500/20 bg-white/70 p-4 shadow-sm dark:bg-slate-900/50">
-              <h2 className="text-lg font-semibold">Список задач из файла</h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Задачи, распарсенные из загруженного XLSX.
+            <section className="ui-card">
+              <h2 className="text-lg font-semibold">Список задач</h2>
+              <p className="mt-1 ui-muted">
+                Задачи из XLSX и задачи, добавленные вручную.
               </p>
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full min-w-[500px] border-collapse text-sm">
                   <thead>
-                    <tr className="border-b border-slate-500/30 text-left text-slate-600 dark:text-slate-400">
+                    <tr className="ui-table-head">
                       <th className="py-2 pr-4 font-medium">ID</th>
                       <th className="py-2 pr-4 font-medium">Тип</th>
                       <th className="py-2 pr-4 font-medium">Заголовок</th>
@@ -991,7 +1187,7 @@ export default function App() {
                     {taskList.map((task) => (
                       <tr
                         key={task.id}
-                        className="border-b border-slate-500/10 text-slate-700 dark:text-slate-300"
+                        className="ui-table-row"
                       >
                         <td className="py-2 pr-4 font-mono text-xs">{task.id}</td>
                         <td className="py-2 pr-4">{task.type ?? "—"}</td>
@@ -1010,13 +1206,32 @@ export default function App() {
           ) : null;
         })()}
 
-        {!data && !isLoading && (
-          <div className="text-sm text-slate-500 dark:text-slate-400">
-            Поддерживаются колонки: Issue ID, Assignee, ownestimate, Period, Status,
-            created, updated, Release, QA, SP.
-          </div>
-        )}
       </div>
+
+      {isPlanningPreviewOpen && (
+        <div
+          className="fixed inset-0 z-50 overflow-auto bg-black/75 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Пример планирования нагрузки"
+        >
+          <div className="relative mx-auto flex min-h-full w-fit items-start justify-center py-8">
+            <button
+              type="button"
+              className="absolute right-2 top-2 rounded-full bg-white/90 px-3 py-1 text-xl leading-none text-slate-900 transition-colors hover:bg-white"
+              onClick={() => setIsPlanningPreviewOpen(false)}
+              aria-label="Закрыть"
+            >
+              ×
+            </button>
+            <img
+              src={planningPreviewSrc}
+              alt="Пример календаря планирования нагрузки разработчиков"
+              className="h-auto w-auto max-h-none max-w-none rounded-lg border border-white/20 shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

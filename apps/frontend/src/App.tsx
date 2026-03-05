@@ -513,6 +513,10 @@ export default function App() {
             <p className="ui-muted">
               Визуализация нагрузки разработчиков
             </p>
+            <p className="mt-1 ui-text-caption">
+              Сервис для планирования и балансировки нагрузки команды: загрузка задач из YouTrack (XLSX),
+              визуальный календарь занятости, ручные корректировки и сохранение сценариев в снапшоты.
+            </p>
           </div>
           <button
             className="ui-btn"

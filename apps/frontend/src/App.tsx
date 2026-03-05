@@ -803,20 +803,15 @@ export default function App() {
               </div>
               <button
                 type="button"
-                className="group relative overflow-hidden rounded-xl border border-slate-500/30"
+                className="w-fit max-w-full overflow-hidden rounded-xl border border-slate-500/30"
                 onClick={() => setIsPlanningPreviewOpen(true)}
                 aria-label="Открыть пример календаря планирования"
               >
                 <img
                   src={planningPreviewSrc}
                   alt="Пример календаря планирования нагрузки разработчиков"
-                  className="h-auto min-h-40 w-full bg-slate-100 object-cover transition-transform duration-200 group-hover:scale-[1.01] dark:bg-slate-800"
+                  className="h-auto w-[340px] max-w-full bg-slate-100 object-contain dark:bg-slate-800"
                 />
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-slate-900/20">
-                  <span className="rounded-full bg-black/50 px-3 py-1 text-xs text-white">
-                    Нажми, чтобы увеличить
-                  </span>
-                </div>
               </button>
             </div>
           </section>
@@ -1211,24 +1206,26 @@ export default function App() {
 
       {isPlanningPreviewOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
+          className="fixed inset-0 z-50 overflow-auto bg-black/75 p-4"
           role="dialog"
           aria-modal="true"
           aria-label="Пример планирования нагрузки"
         >
-          <button
-            type="button"
-            className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xl leading-none text-slate-900 transition-colors hover:bg-white"
-            onClick={() => setIsPlanningPreviewOpen(false)}
-            aria-label="Закрыть"
-          >
-            ×
-          </button>
-          <img
-            src={planningPreviewSrc}
-            alt="Пример календаря планирования нагрузки разработчиков"
-            className="max-h-[92vh] max-w-[96vw] rounded-lg border border-white/20 object-contain shadow-2xl"
-          />
+          <div className="relative mx-auto flex min-h-full w-fit items-start justify-center py-8">
+            <button
+              type="button"
+              className="absolute right-2 top-2 rounded-full bg-white/90 px-3 py-1 text-xl leading-none text-slate-900 transition-colors hover:bg-white"
+              onClick={() => setIsPlanningPreviewOpen(false)}
+              aria-label="Закрыть"
+            >
+              ×
+            </button>
+            <img
+              src={planningPreviewSrc}
+              alt="Пример календаря планирования нагрузки разработчиков"
+              className="h-auto w-auto max-h-none max-w-none rounded-lg border border-white/20 shadow-2xl"
+            />
+          </div>
         </div>
       )}
     </div>

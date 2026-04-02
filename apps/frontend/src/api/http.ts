@@ -3,11 +3,17 @@ type ApiRequestOptions = {
 };
 
 type AuthRefreshHandler = () => Promise<string | null>;
+type AuthExpiredCallback = () => void;
 
 let authRefreshHandler: AuthRefreshHandler | null = null;
+let onAuthExpired: AuthExpiredCallback | null = null;
 
 export const setAuthRefreshHandler = (handler: AuthRefreshHandler) => {
   authRefreshHandler = handler;
+};
+
+export const setOnAuthExpired = (callback: AuthExpiredCallback) => {
+  onAuthExpired = callback;
 };
 
 const parseErrorText = async (response: Response) => {
@@ -55,7 +61,11 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
-    throw new Error(await parseErrorText(response));
+    const errorText = await parseErrorText(response);
+    if (response.status === 401 && onAuthExpired) {
+      onAuthExpired();
+    }
+    throw new Error(errorText);
   }
 
   return (await response.json()) as T;

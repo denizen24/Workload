@@ -10,6 +10,7 @@ import {
   register,
   saveAuthTokens
 } from "../api/auth";
+import { setOnAuthExpired } from "../api/http";
 
 export function useAuth(setError: (err: string | null) => void) {
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
@@ -18,6 +19,13 @@ export function useAuth(setError: (err: string | null) => void) {
   const [authSecret, setAuthSecret] = useState("");
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const [isAuthBusy, setIsAuthBusy] = useState(false);
+
+  useEffect(() => {
+    setOnAuthExpired(() => {
+      clearAuthTokens();
+      setCurrentUser(null);
+    });
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated()) return;

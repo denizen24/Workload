@@ -1,6 +1,5 @@
 import { endOfMonth, parseISO } from "date-fns";
-import html2canvas from "html2canvas";
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { AuthSection } from "./components/AuthSection";
 import { CustomTasksSection } from "./components/CustomTasksSection";
@@ -9,26 +8,13 @@ import { GanttBoard } from "./components/GanttBoard";
 import { SnapshotsSection } from "./components/SnapshotsSection";
 import { SprintSetupModal } from "./components/SprintSetupModal";
 import { SprintsSection } from "./components/SprintsSection";
+import { TaskListSection } from "./components/TaskListSection";
 import { UploadPanel } from "./components/UploadPanel";
 import { useAuth } from "./hooks/useAuth";
+import { useScreenshot } from "./hooks/useScreenshot";
 import { SnapshotLayoutPayload, useSnapshots } from "./hooks/useSnapshots";
-import { CustomTask, CustomTaskType, Sprint, WorkloadResponse } from "./types";
-
-const uploadFile = async (file: File) => {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const response = await fetch("/api/upload", {
-    method: "POST",
-    body: formData
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || "Ошибка загрузки");
-  }
-  return (await response.json()) as WorkloadResponse;
-};
+import { useUpload } from "./hooks/useUpload";
+import { CustomTask, CustomTaskType, Sprint } from "./types";
 
 /** Оценка в днях → строка вида "1н 5д 3ч" (недели, дни, часы; 1н = 5 раб.д, 1д = 8ч) */
 function formatEstimate(days: number): string {
@@ -44,52 +30,8 @@ function formatEstimate(days: number): string {
   return parts.join(" ");
 }
 
-type UploadState = {
-  data: WorkloadResponse | null;
-  isLoading: boolean;
-  error: string | null;
-  showSprintSetup: boolean;
-};
-
-type UploadAction =
-  | { type: "UPLOAD_START" }
-  | { type: "UPLOAD_SUCCESS"; data: WorkloadResponse; showSetup: boolean }
-  | { type: "UPLOAD_ERROR"; error: string }
-  | { type: "SET_DATA"; data: WorkloadResponse | null }
-  | { type: "SET_ERROR"; error: string | null }
-  | { type: "SET_SHOW_SPRINT_SETUP"; show: boolean };
-
-const uploadInitialState: UploadState = {
-  data: null,
-  isLoading: false,
-  error: null,
-  showSprintSetup: false
-};
-
-function uploadReducer(state: UploadState, action: UploadAction): UploadState {
-  switch (action.type) {
-    case "UPLOAD_START":
-      return { ...state, isLoading: true, error: null };
-    case "UPLOAD_SUCCESS":
-      return { ...state, isLoading: false, data: action.data, showSprintSetup: action.showSetup };
-    case "UPLOAD_ERROR":
-      return { ...state, isLoading: false, error: action.error };
-    case "SET_DATA":
-      return { ...state, data: action.data };
-    case "SET_ERROR":
-      return { ...state, error: action.error };
-    case "SET_SHOW_SPRINT_SETUP":
-      return { ...state, showSprintSetup: action.show };
-    default:
-      return state;
-  }
-}
-
 export default function App() {
   const planningPreviewSrc = `${import.meta.env.BASE_URL}workload-planning-example.png`;
-  const [uploadState, dispatch] = useReducer(uploadReducer, uploadInitialState);
-  const { data, isLoading, error, showSprintSetup } = uploadState;
-  const setError = useCallback((err: string | null) => dispatch({ type: "SET_ERROR", error: err }), []);
   const [theme, setTheme] = useState<"light" | "dark">("dark");
   const [sprints, setSprints] = useState<Sprint[]>([]);
   const [startSprintId, setStartSprintId] = useState<string | null>(null);
@@ -127,7 +69,11 @@ export default function App() {
   const [taskStartDates, setTaskStartDates] = useState<Record<string, string>>({});
   const [isPlanningPreviewOpen, setIsPlanningPreviewOpen] = useState(false);
 
+  const upload = useUpload(sprints.length);
+  const { data, isLoading, error, showSprintSetup, setError, setData, setShowSprintSetup } = upload;
+
   const auth = useAuth(setError);
+  const handleSaveScreenshot = useScreenshot(calendarRef, setError);
 
   const buildSnapshotLayout = useCallback(
     (): SnapshotLayoutPayload => ({
@@ -143,7 +89,7 @@ export default function App() {
   );
 
   const applySnapshotLayout = useCallback((layout: SnapshotLayoutPayload) => {
-    dispatch({ type: "SET_DATA", data: layout.workloadData ?? null });
+    setData(layout.workloadData ?? null);
     setSprints(Array.isArray(layout.sprints) ? layout.sprints : []);
     setStartSprintId(layout.startSprintId ?? null);
     setCustomTasks(Array.isArray(layout.customTasks) ? layout.customTasks : []);
@@ -154,7 +100,7 @@ export default function App() {
         ? layout.taskStartDates
         : {}
     );
-  }, []);
+  }, [setData]);
 
   const snapshotsHook = useSnapshots({
     setError,
@@ -167,83 +113,10 @@ export default function App() {
     snapshotsHook.resetSnapshots();
   }, [auth, snapshotsHook]);
 
-  const handleSaveScreenshot = useCallback(
-    async (format: "png" | "jpeg") => {
-      const el = calendarRef.current;
-      if (!el) return;
-      const scrollContainer = el.firstElementChild as HTMLElement | null;
-      if (!scrollContainer) return;
-
-      const savedOverflow = scrollContainer.style.overflow;
-      const savedWidth = scrollContainer.style.width;
-      const savedHeight = scrollContainer.style.height;
-      const savedBgEl = (el as HTMLElement).style.backgroundColor;
-      const savedBgScroll = scrollContainer.style.backgroundColor;
-
-      try {
-        scrollContainer.style.overflow = "visible";
-        scrollContainer.style.width = `${scrollContainer.scrollWidth}px`;
-        scrollContainer.style.height = `${scrollContainer.scrollHeight}px`;
-        (el as HTMLElement).style.backgroundColor = "#ffffff";
-        scrollContainer.style.backgroundColor = "#ffffff";
-
-        const fullWidth = scrollContainer.scrollWidth;
-        const fullHeight = scrollContainer.scrollHeight;
-
-        const canvas = await html2canvas(el, {
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: "#ffffff",
-          scale: window.devicePixelRatio || 1,
-          logging: false,
-          width: fullWidth,
-          height: fullHeight,
-          windowWidth: fullWidth,
-          windowHeight: fullHeight,
-          onclone(_, clonedEl) {
-            const root = clonedEl as HTMLElement;
-            root.style.backgroundColor = "#ffffff";
-            const scroll = root.firstElementChild as HTMLElement;
-            if (scroll) scroll.style.backgroundColor = "#ffffff";
-            root.querySelectorAll("[class*='backdrop-blur'],[class*='bg-white/']").forEach((node) => {
-              (node as HTMLElement).style.backgroundColor = "#ffffff";
-              (node as HTMLElement).style.backdropFilter = "none";
-            });
-          }
-        });
-
-        (el as HTMLElement).style.backgroundColor = savedBgEl;
-        scrollContainer.style.backgroundColor = savedBgScroll;
-        scrollContainer.style.overflow = savedOverflow;
-        scrollContainer.style.width = savedWidth;
-        scrollContainer.style.height = savedHeight;
-
-        const mime = format === "png" ? "image/png" : "image/jpeg";
-        const ext = format === "png" ? "png" : "jpg";
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) return;
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `workload-calendar-${new Date().toISOString().slice(0, 10)}.${ext}`;
-            a.click();
-            URL.revokeObjectURL(url);
-          },
-          mime,
-          format === "jpeg" ? 0.92 : undefined
-        );
-      } catch (e) {
-        (el as HTMLElement).style.backgroundColor = savedBgEl;
-        scrollContainer.style.backgroundColor = savedBgScroll;
-        scrollContainer.style.overflow = savedOverflow;
-        scrollContainer.style.width = savedWidth;
-        scrollContainer.style.height = savedHeight;
-        setError(e instanceof Error ? e.message : "Ошибка сохранения скриншота");
-      }
-    },
-    [setError]
-  );
+  const handleUpload = useCallback(async (file: File) => {
+    const result = await upload.handleUpload(file);
+    if (result) setTaskStartDates({});
+  }, [upload]);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -259,39 +132,16 @@ export default function App() {
   useEffect(() => {
     if (!isPlanningPreviewOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsPlanningPreviewOpen(false);
-      }
+      if (event.key === "Escape") setIsPlanningPreviewOpen(false);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [isPlanningPreviewOpen]);
 
-  const handleUpload = useCallback(async (file: File) => {
-    dispatch({ type: "UPLOAD_START" });
-    try {
-      const result = await uploadFile(file);
-      setTaskStartDates({});
-      dispatch({ type: "UPLOAD_SUCCESS", data: result, showSetup: sprints.length === 0 });
-    } catch (err) {
-      dispatch({ type: "UPLOAD_ERROR", error: err instanceof Error ? err.message : "Ошибка обработки файла" });
-    }
-  }, [sprints.length]);
-
   const addSprint = () => {
     const id = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    setSprints((prev) => [
-      ...prev,
-      {
-        id,
-        name: "",
-        start: "",
-        end: ""
-      }
-    ]);
-    if (!startSprintId) {
-      setStartSprintId(id);
-    }
+    setSprints((prev) => [...prev, { id, name: "", start: "", end: "" }]);
+    if (!startSprintId) setStartSprintId(id);
   };
 
   const updateSprint = (id: string, patch: Partial<Sprint>) => {
@@ -390,10 +240,6 @@ export default function App() {
     setStartSprintId((current) => (current === id ? null : current));
   };
 
-  const handleResetTaskLayout = () => {
-    setTaskStartDates({});
-  };
-
   return (
     <div className="min-h-screen bg-surface-light px-6 py-8 text-slate-900 dark:bg-surface-dark dark:text-slate-100">
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
@@ -418,14 +264,10 @@ export default function App() {
             {theme === "dark" ? (
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="9" cy="9" r="3.5" />
-                <path d="M9 1.5v1.5" />
-                <path d="M9 15v1.5" />
-                <path d="M1.5 9H3" />
-                <path d="M15 9h1.5" />
-                <path d="M3.7 3.7l1.06 1.06" />
-                <path d="M13.24 13.24l1.06 1.06" />
-                <path d="M3.7 14.3l1.06-1.06" />
-                <path d="M13.24 4.76l1.06-1.06" />
+                <path d="M9 1.5v1.5" /><path d="M9 15v1.5" />
+                <path d="M1.5 9H3" /><path d="M15 9h1.5" />
+                <path d="M3.7 3.7l1.06 1.06" /><path d="M13.24 13.24l1.06 1.06" />
+                <path d="M3.7 14.3l1.06-1.06" /><path d="M13.24 4.76l1.06-1.06" />
               </svg>
             ) : (
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -448,8 +290,7 @@ export default function App() {
               aria-label="Dismiss error"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M4 4l8 8" />
-                <path d="M12 4l-8 8" />
+                <path d="M4 4l8 8" /><path d="M12 4l-8 8" />
               </svg>
             </button>
           </div>
@@ -495,7 +336,7 @@ export default function App() {
                 <p className="ui-muted">Перетаскивайте задачи и фиксируйте итоговое расположение в снапшоте.</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" className="ui-btn" onClick={handleResetTaskLayout}>
+                <button type="button" className="ui-btn" onClick={() => setTaskStartDates({})}>
                   Сбросить расположение
                 </button>
                 <div className="relative">
@@ -520,28 +361,20 @@ export default function App() {
                       role="menu"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button
-                        type="button"
-                        className="px-4 py-2 text-left text-sm transition-colors duration-150 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 dark:hover:bg-slate-700"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSaveScreenshot("png");
-                          setScreenshotMenuOpen(false);
-                        }}
-                      >
-                        PNG
-                      </button>
-                      <button
-                        type="button"
-                        className="px-4 py-2 text-left text-sm transition-colors duration-150 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 dark:hover:bg-slate-700"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleSaveScreenshot("jpeg");
-                          setScreenshotMenuOpen(false);
-                        }}
-                      >
-                        JPG
-                      </button>
+                      {(["png", "jpeg"] as const).map((fmt) => (
+                        <button
+                          key={fmt}
+                          type="button"
+                          className="px-4 py-2 text-left text-sm transition-colors duration-150 hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 dark:hover:bg-slate-700"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleSaveScreenshot(fmt);
+                            setScreenshotMenuOpen(false);
+                          }}
+                        >
+                          {fmt === "png" ? "PNG" : "JPG"}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -640,81 +473,13 @@ export default function App() {
           />
         )}
 
-        {data && (() => {
-          const taskMap = new Map<
-            string,
-            { id: string; title: string | null; type: string | null; estimate: number | null }
-          >();
-
-          data.assignees.forEach((a) =>
-            a.periods.forEach((p) =>
-              p.days.forEach((d) =>
-                d.tasks.forEach((id) => {
-                  if (!taskMap.has(id)) {
-                    taskMap.set(id, {
-                      id,
-                      title: data.taskTitles?.[id] ?? null,
-                      type: data.taskTypes?.[id] ?? null,
-                      estimate: data.taskEstimates?.[id] ?? null
-                    });
-                  }
-                })
-              )
-            )
-          );
-
-          customTasks
-            .filter((task) => task.type === "task" && task.taskIdentifier)
-            .forEach((task) => {
-              const id = task.taskIdentifier as string;
-              taskMap.set(id, {
-                id,
-                title: task.title ?? null,
-                type: task.taskKind ?? "TASK",
-                estimate: task.estimateDays ?? null
-              });
-            });
-
-          const taskList = Array.from(taskMap.values()).sort((a, b) => a.id.localeCompare(b.id));
-          return taskList.length > 0 ? (
-            <section className="ui-card">
-              <h2 className="text-lg font-semibold">Список задач</h2>
-              <p className="mt-1 ui-muted">
-                Задачи из XLSX и задачи, добавленные вручную.
-              </p>
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full min-w-[500px] border-collapse text-sm">
-                  <thead>
-                    <tr className="ui-table-head">
-                      <th className="py-2 pr-4 font-medium">ID</th>
-                      <th className="py-2 pr-4 font-medium">Тип</th>
-                      <th className="py-2 pr-4 font-medium">Заголовок</th>
-                      <th className="py-2 font-medium">Оценка</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {taskList.map((task) => (
-                      <tr
-                        key={task.id}
-                        className="ui-table-row"
-                      >
-                        <td className="py-2 pr-4 font-mono text-xs">{task.id}</td>
-                        <td className="py-2 pr-4">{task.type ?? "—"}</td>
-                        <td className="py-2 pr-4">{task.title ?? "—"}</td>
-                        <td className="py-2">
-                          {task.estimate != null && task.estimate > 0
-                            ? formatEstimate(task.estimate)
-                            : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ) : null;
-        })()}
-
+        {data && (
+          <TaskListSection
+            data={data}
+            customTasks={customTasks}
+            formatEstimate={formatEstimate}
+          />
+        )}
       </div>
 
       {showSprintSetup && (
@@ -722,9 +487,9 @@ export default function App() {
           onConfirm={(sprint) => {
             setSprints((prev) => [...prev, sprint]);
             setStartSprintId(sprint.id);
-            dispatch({ type: "SET_SHOW_SPRINT_SETUP", show: false });
+            setShowSprintSetup(false);
           }}
-          onSkip={() => dispatch({ type: "SET_SHOW_SPRINT_SETUP", show: false })}
+          onSkip={() => setShowSprintSetup(false)}
         />
       )}
 

@@ -6,10 +6,10 @@ import {
   boardPalette,
   getAssigneeNoteColor,
   getTaskColor,
-  taskColors,
   type ThemeMode
 } from "../theme/boardPalette";
 import { buildTimeline, getDateRange } from "../utils/date";
+import { GanttLegend } from "./GanttLegend";
 
 type GanttBoardProps = {
   data: WorkloadResponse;
@@ -629,40 +629,7 @@ export function GanttBoard({
         </g>
       </svg>
 
-      <div className="mt-4 flex items-center gap-6 border-t border-slate-500/10 pt-3 text-xs text-slate-600 dark:text-slate-400">
-        <span className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: taskColors.duty }}
-            aria-hidden
-          />
-          <span className="font-mono">DUTY</span>
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: taskColors.featureOrTech }}
-            aria-hidden
-          />
-          <span className="font-mono">FEATURE / TECH</span>
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: taskColors.bug }}
-            aria-hidden
-          />
-          <span className="font-mono">BUG</span>
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span
-            className="inline-block h-2.5 w-2.5 rounded-full"
-            style={{ backgroundColor: taskColors.task }}
-            aria-hidden
-          />
-          <span className="font-mono">TASK</span>
-        </span>
-      </div>
+      <GanttLegend />
     </div>
   );
 }

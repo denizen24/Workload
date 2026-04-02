@@ -12,6 +12,8 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const logger = new Logger("Bootstrap");
 
+  app.getHttpAdapter().getInstance().set("trust proxy", true);
+
   const corsOrigin = configService.get<string>("CORS_ORIGIN") || false;
   const port = configService.get<number>("PORT", 3000);
 

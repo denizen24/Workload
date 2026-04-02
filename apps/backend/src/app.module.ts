@@ -25,7 +25,7 @@ import { SnapshotsModule } from "./snapshots/snapshots.module";
         uri: configService.get<string>("MONGO_URI")
       })
     }),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 10 }]),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     RedisModule,
     FileModule,
     ParseModule,

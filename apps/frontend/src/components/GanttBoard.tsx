@@ -283,7 +283,7 @@ export function GanttBoard({
     rowLayout.forEach((row) => {
       row.tasks.forEach((task) => {
         const taskId = `${row.assignee.name}::${task.id}`;
-        const startKey = format(task.start, "yyyy-MM-dd");
+        const startKey = taskStartDates[taskId] ?? format(task.start, "yyyy-MM-dd");
         const baseStartIndex = dayIndex.get(startKey);
         if (baseStartIndex === undefined) {
           return;
@@ -295,7 +295,7 @@ export function GanttBoard({
       });
     });
     return meta;
-  }, [dayIndex, rowLayout]);
+  }, [dayIndex, rowLayout, taskStartDates]);
 
   const taskPlacementMetaRef = useRef(taskPlacementMeta);
   taskPlacementMetaRef.current = taskPlacementMeta;
@@ -323,15 +323,7 @@ export function GanttBoard({
         const placement = taskPlacementMetaRef.current.get(taskId);
         if (placement) {
           const rawOffset = dragOffsetsRef.current[taskId] ?? 0;
-          const endIndex = computeEndIndex(placement.baseStartIndex, placement.widthDays);
-          const maxOffset = days.length - 1 - endIndex;
-          const minOffset = -placement.baseStartIndex;
-          const offset = clamp(rawOffset, minOffset, maxOffset);
-          const adjustedStartIndex = clamp(
-            placement.baseStartIndex + offset,
-            0,
-            days.length - 1
-          );
+          const adjustedStartIndex = applyWorkdayOffset(placement.baseStartIndex, rawOffset);
           const adjustedDay = days[adjustedStartIndex];
           if (adjustedDay) {
             onChange({
@@ -341,6 +333,12 @@ export function GanttBoard({
           }
         }
       }
+      setDragOffsets((prev) => {
+        if (!ds.taskId) return prev;
+        const next = { ...prev };
+        delete next[ds.taskId];
+        return next;
+      });
       setDragState({ taskId: null, startX: 0, startOffset: 0 });
     };
     window.addEventListener("pointermove", handleMove);
@@ -395,6 +393,26 @@ export function GanttBoard({
       }
     }
     return Math.min(days.length - 1, index);
+  };
+
+  const applyWorkdayOffset = (fromIndex: number, workdayDelta: number): number => {
+    if (workdayDelta === 0) return fromIndex;
+    let index = fromIndex;
+    let remaining = Math.abs(workdayDelta);
+    const step = workdayDelta > 0 ? 1 : -1;
+    while (remaining > 0) {
+      index += step;
+      if (index < 0 || index >= days.length) {
+        return clamp(index, 0, days.length - 1);
+      }
+      const day = days[index];
+      const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+      const isHol = holidaysSet.has(format(day, "yyyy-MM-dd"));
+      if (!isWeekend && !isHol) {
+        remaining -= 1;
+      }
+    }
+    return index;
   };
 
   const headerElements = useMemo(() => (
@@ -511,15 +529,7 @@ export function GanttBoard({
                   if (startIndex === undefined) return null;
                   const baseOffset = dragOffsets[taskId] ?? 0;
                   const widthDays = task.widthDays;
-                  const endIndex = computeEndIndex(startIndex, widthDays);
-                  const maxOffset = days.length - 1 - endIndex;
-                  const minOffset = -startIndex;
-                  const offset = clamp(baseOffset, minOffset, maxOffset);
-                  const adjustedStartIndex = clamp(
-                    startIndex + offset,
-                    0,
-                    days.length - 1
-                  );
+                  const adjustedStartIndex = applyWorkdayOffset(startIndex, baseOffset);
                   const adjustedEndIndex = computeEndIndex(adjustedStartIndex, widthDays);
                   const x = xForIndex(adjustedStartIndex) + 2;
                   const width = Math.max(

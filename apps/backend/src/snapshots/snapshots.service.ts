@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
@@ -11,12 +12,14 @@ import { Snapshot, SnapshotDocument } from "./schemas/snapshot.schema";
 
 @Injectable()
 export class SnapshotsService {
+  private readonly logger = new Logger(SnapshotsService.name);
+
   constructor(
     @InjectModel(Snapshot.name)
     private readonly snapshotModel: Model<SnapshotDocument>
   ) {}
 
-  async findAll(userId: string, sprintId?: string) {
+  async findAll(userId: string, sprintId?: string, limit = 50, offset = 0) {
     const filter: Record<string, unknown> = {
       userId: new Types.ObjectId(userId)
     };
@@ -24,7 +27,13 @@ export class SnapshotsService {
       filter.sprintId = sprintId;
     }
 
-    return this.snapshotModel.find(filter).sort({ updatedAt: -1 }).exec();
+    return this.snapshotModel
+      .find(filter)
+      .sort({ updatedAt: -1 })
+      .skip(offset)
+      .limit(limit)
+      .lean()
+      .exec();
   }
 
   async findOne(userId: string, snapshotId: string) {
@@ -42,6 +51,7 @@ export class SnapshotsService {
       );
     }
 
+    this.logger.log(`Creating snapshot "${dto.name}" for sprint ${dto.sprintId}`);
     return this.snapshotModel.create({
       userId: new Types.ObjectId(userId),
       sprintId: dto.sprintId,

@@ -9,6 +9,7 @@ type AppEnv = {
   MONGO_URI: string;
   REDIS_HOST: string;
   REDIS_PORT: number;
+  REGISTRATION_SECRET: string;
 };
 
 export const validateEnv = (raw: Record<string, unknown>): AppEnv => {
@@ -42,6 +43,13 @@ export const validateEnv = (raw: Record<string, unknown>): AppEnv => {
     JWT_REFRESH_EXPIRES_IN: String(raw.JWT_REFRESH_EXPIRES_IN ?? "7d"),
     MONGO_URI: String(raw.MONGO_URI ?? "mongodb://localhost:27017/workload"),
     REDIS_HOST: String(raw.REDIS_HOST ?? "localhost"),
-    REDIS_PORT: redisPort
+    REDIS_PORT: redisPort,
+    REGISTRATION_SECRET: (() => {
+      const secret = raw.REGISTRATION_SECRET != null ? String(raw.REGISTRATION_SECRET).trim() : "";
+      if (!secret) {
+        throw new Error("REGISTRATION_SECRET is required (set in .env)");
+      }
+      return secret;
+    })()
   };
 };

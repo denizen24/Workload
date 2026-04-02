@@ -5,21 +5,50 @@ export default {
   darkMode: "class",
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"Fira Sans"', 'system-ui', 'sans-serif'],
+        mono: ['"Fira Code"', 'ui-monospace', 'monospace'],
+      },
       colors: {
         surface: {
-          light: "#f7f5f2",
-          dark: "#1f1f22"
+          base: 'var(--color-surface-base)',
+          card: 'var(--color-surface-card)',
+          elevated: 'var(--color-surface-elevated)',
         },
-        ui: {
-          mutedLight: "#475569",
-          mutedDark: "#94a3b8",
-          success: "#16a34a",
-          warning: "#d97706",
-          danger: "#dc2626",
-          info: "#2563eb"
-        }
-      }
-    }
+        accent: {
+          DEFAULT: '#6366f1',
+          light: '#818cf8',
+          muted: '#6366f1/20',
+        },
+        txt: {
+          primary: 'var(--color-text-primary)',
+          secondary: 'var(--color-text-secondary)',
+          muted: 'var(--color-text-muted)',
+        },
+      },
+      boxShadow: {
+        soft: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.08)',
+        'soft-lg': '0 4px 12px rgba(0,0,0,0.15), 0 2px 4px rgba(0,0,0,0.08)',
+        'inner-soft': 'inset 0 1px 2px rgba(0,0,0,0.06)',
+      },
+      borderRadius: {
+        card: '12px',
+      },
+      animation: {
+        'fade-in': 'fadeIn 0.3s ease-out',
+        'slide-up': 'slideUp 0.3s ease-out',
+      },
+      keyframes: {
+        fadeIn: {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
+        slideUp: {
+          '0%': { opacity: '0', transform: 'translateY(8px)' },
+          '100%': { opacity: '1', transform: 'translateY(0)' },
+        },
+      },
+    },
   },
-  plugins: []
+  plugins: [],
 } satisfies Config;

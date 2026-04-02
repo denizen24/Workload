@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Post, UseGuards } from "@nestjs/common";
+import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
 
 import { CurrentUser } from "../common/decorators/current-user.decorator";
 import { Public } from "../common/decorators/public.decorator";
@@ -9,6 +10,8 @@ import { RegisterDto } from "./dto/register.dto";
 import { JwtRefreshGuard } from "./guards/jwt-refresh.guard";
 import { AuthUser } from "./types/auth-user.type";
 
+@ApiTags("Auth")
+@ApiBearerAuth()
 @Controller("api/auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}

@@ -1,0 +1,8 @@
+node_modules
+dist
+coverage
+.env
+*.spec.ts
+test
+.eslintrc.cjs
+jest.config.ts

@@ -122,7 +122,7 @@ export function parseNumber(value: unknown) {
 }
 
 const SECONDS_PER_HOUR = 3600;
-const SECONDS_PER_DAY = 28800; // 8h
+export const SECONDS_PER_DAY = 28800; // 8h
 const SECONDS_PER_WEEK = 5 * SECONDS_PER_DAY; // 5 work days
 
 /**

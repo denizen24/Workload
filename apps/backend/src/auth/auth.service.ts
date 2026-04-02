@@ -1,6 +1,10 @@
+import * as crypto from "crypto";
+
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
+  Logger,
   UnauthorizedException
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -29,6 +33,7 @@ type TokenPair = {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   private readonly refreshTtlSeconds: number;
 
   constructor(
@@ -43,6 +48,11 @@ export class AuthService {
   }
 
   async register(dto: RegisterDto) {
+    const requiredSecret = this.configService.get<string>("REGISTRATION_SECRET", "");
+    if (requiredSecret && dto.registrationSecret !== requiredSecret) {
+      throw new ForbiddenException("Invalid registration secret");
+    }
+
     const email = dto.email.toLowerCase().trim();
     const exists = await this.userModel.exists({ email });
     if (exists) {
@@ -59,6 +69,7 @@ export class AuthService {
 
     const tokens = await this.generateTokens(user.id, user.email);
     await this.saveRefreshToken(user.id, tokens.refreshToken);
+    this.logger.log(`User registered: ${email}`);
 
     return {
       user: this.toPublicUser(user),
@@ -75,11 +86,13 @@ export class AuthService {
 
     const isValidPassword = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isValidPassword) {
+      this.logger.warn(`Failed login attempt for: ${email}`);
       throw new UnauthorizedException("Invalid email or password");
     }
 
     const tokens = await this.generateTokens(user.id, user.email);
     await this.saveRefreshToken(user.id, tokens.refreshToken);
+    this.logger.log(`User logged in: ${email}`);
 
     return {
       user: this.toPublicUser(user),
@@ -133,10 +146,13 @@ export class AuthService {
         secret: accessSecret,
         expiresIn: accessExpiresIn as SignOptions["expiresIn"]
       }),
-      this.jwtService.signAsync(payload, {
-        secret: refreshSecret,
-        expiresIn: refreshExpiresIn as SignOptions["expiresIn"]
-      })
+      this.jwtService.signAsync(
+        { ...payload, jti: crypto.randomUUID() },
+        {
+          secret: refreshSecret,
+          expiresIn: refreshExpiresIn as SignOptions["expiresIn"]
+        }
+      )
     ]);
 
     return { accessToken, refreshToken };

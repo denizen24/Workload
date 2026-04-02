@@ -2,107 +2,213 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
-  box-sizing: border-box;
-}
+@layer base {
+  :root {
+    --color-surface-base: #f8f9fc;
+    --color-surface-card: #ffffff;
+    --color-surface-elevated: #f1f5f9;
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #475569;
+    --color-text-muted: #94a3b8;
+    --color-border: rgba(15, 23, 42, 0.1);
+    --color-border-strong: rgba(15, 23, 42, 0.2);
+  }
 
-body {
-  font-family: "Inter", system-ui, -apple-system, sans-serif;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  .dark {
+    --color-surface-base: #0f1117;
+    --color-surface-card: #1a1d27;
+    --color-surface-elevated: #242836;
+    --color-text-primary: #e2e8f0;
+    --color-text-secondary: #94a3b8;
+    --color-text-muted: #64748b;
+    --color-border: rgba(148, 163, 184, 0.1);
+    --color-border-strong: rgba(148, 163, 184, 0.2);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: "Fira Sans", system-ui, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background-color: var(--color-surface-base);
+    color: var(--color-text-primary);
+  }
 }
 
 @layer components {
   .ui-card {
-    @apply rounded-2xl border border-slate-500/20 bg-white/70 p-4 shadow-sm dark:bg-slate-900/50;
+    @apply rounded-card border bg-surface-card p-5 shadow-soft;
+    border-color: var(--color-border);
   }
 
   .ui-btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-full border border-slate-500/40 px-4 py-2 text-sm transition-colors duration-150 hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900 disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-all duration-200 ease-out
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-base
+      disabled:opacity-50 disabled:pointer-events-none;
+    border-color: var(--color-border-strong);
+    color: var(--color-text-primary);
+  }
+  .ui-btn:hover {
+    background-color: var(--color-surface-elevated);
+    border-color: var(--color-border-strong);
   }
 
   .ui-btn-primary {
-    @apply border-indigo-500 bg-indigo-600 text-white hover:bg-indigo-500 dark:border-indigo-400 dark:bg-indigo-500 dark:hover:bg-indigo-400;
+    @apply border-accent bg-accent text-white;
+  }
+  .ui-btn-primary:hover {
+    @apply bg-accent-light border-accent-light;
   }
 
   .ui-btn-ghost {
-    @apply border-transparent bg-transparent hover:bg-slate-100 dark:hover:bg-slate-800;
+    @apply border-transparent bg-transparent;
+  }
+  .ui-btn-ghost:hover {
+    background-color: var(--color-surface-elevated);
   }
 
   .ui-btn-sm {
-    @apply rounded-full border border-slate-500/40 px-3 py-1 text-xs transition-colors duration-150 hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900 disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex cursor-pointer items-center justify-center rounded-md border px-3 py-1.5 text-xs font-medium transition-all duration-200 ease-out
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-base
+      disabled:opacity-50 disabled:pointer-events-none;
+    border-color: var(--color-border-strong);
+    color: var(--color-text-primary);
+  }
+  .ui-btn-sm:hover {
+    background-color: var(--color-surface-elevated);
   }
 
   .ui-btn-danger {
-    @apply border-red-500/40 text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/30;
+    @apply border-red-500/30 text-red-600 dark:text-red-400;
+  }
+  .ui-btn-danger:hover {
+    @apply bg-red-50 dark:bg-red-900/20;
   }
 
   .ui-input {
-    @apply rounded-lg border border-slate-500/30 bg-white px-3 py-2 text-sm text-slate-900 dark:bg-slate-800 dark:text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-slate-900;
+    @apply rounded-lg border bg-surface-card px-3 py-2 text-sm shadow-inner-soft transition-all duration-200
+      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface-base;
+    border-color: var(--color-border-strong);
+    color: var(--color-text-primary);
+  }
+  .ui-input::placeholder {
+    color: var(--color-text-muted);
   }
 
   .ui-segmented {
-    @apply inline-flex rounded-full border border-slate-500/30 bg-slate-50 p-1 dark:bg-slate-900/60;
+    @apply inline-flex rounded-lg border p-1;
+    border-color: var(--color-border-strong);
+    background-color: var(--color-surface-elevated);
   }
 
   .ui-segment-btn {
-    @apply rounded-full px-4 py-1.5 text-sm text-slate-700 transition-colors duration-150 hover:bg-white dark:text-slate-300 dark:hover:bg-slate-800;
+    @apply cursor-pointer rounded-md px-4 py-1.5 text-sm font-medium transition-all duration-200;
+    color: var(--color-text-secondary);
+  }
+  .ui-segment-btn:hover {
+    color: var(--color-text-primary);
+    background-color: var(--color-surface-card);
   }
 
   .ui-segment-btn-active {
-    @apply bg-indigo-50 text-indigo-700 ring-1 ring-indigo-300 dark:bg-indigo-900/40 dark:text-indigo-300 dark:ring-indigo-500/50;
+    @apply bg-accent text-white shadow-soft;
+  }
+  .ui-segment-btn-active:hover {
+    @apply bg-accent text-white;
   }
 
   .ui-muted {
-    @apply text-sm text-slate-600 dark:text-slate-400;
+    @apply text-sm;
+    color: var(--color-text-secondary);
   }
 
   .ui-text-secondary {
-    @apply text-slate-600 dark:text-slate-400;
+    color: var(--color-text-secondary);
   }
 
   .ui-text-emphasis {
-    @apply text-slate-700 dark:text-slate-300;
+    color: var(--color-text-primary);
+    font-weight: 500;
   }
 
   .ui-text-caption {
-    @apply text-xs text-slate-600 dark:text-slate-400;
+    @apply text-xs;
+    color: var(--color-text-muted);
   }
 
   .ui-empty-state {
-    @apply rounded-lg border border-dashed border-slate-500/30 p-3 text-sm text-slate-600 dark:text-slate-400;
+    @apply rounded-lg border border-dashed p-4 text-sm;
+    border-color: var(--color-border-strong);
+    color: var(--color-text-secondary);
   }
 
   .ui-chip-warning {
-    @apply inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-50 px-3 py-1 text-sm dark:bg-amber-900/20 dark:border-amber-600/40;
+    @apply inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-50 px-3 py-1 text-sm font-medium dark:bg-amber-900/20 dark:border-amber-500/20;
+    color: #92400e;
+  }
+  .dark .ui-chip-warning {
+    color: #fbbf24;
   }
 
   .ui-chip-warning-action {
-    @apply ml-1 inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 hover:bg-amber-200 dark:hover:bg-amber-700;
+    @apply ml-1 inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-full transition-colors duration-200 hover:bg-amber-200 dark:hover:bg-amber-700/50;
   }
 
   .ui-chip-neutral {
-    @apply inline-flex items-center gap-1 rounded-full border border-slate-500/20 bg-slate-100 px-3 py-1 text-sm dark:bg-slate-800 dark:border-slate-600;
+    @apply inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium;
+    border-color: var(--color-border-strong);
+    background-color: var(--color-surface-elevated);
+    color: var(--color-text-secondary);
   }
 
   .ui-chip-neutral-action {
-    @apply ml-1 inline-flex h-7 w-7 items-center justify-center rounded-full transition-colors duration-150 hover:bg-slate-300 dark:hover:bg-slate-600;
+    @apply ml-1 inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-full transition-colors duration-200;
+  }
+  .ui-chip-neutral-action:hover {
+    background-color: var(--color-surface-card);
   }
 
   .ui-table-head {
-    @apply border-b border-slate-500/30 text-left text-slate-600 dark:text-slate-400;
+    @apply border-b text-left text-xs font-semibold uppercase tracking-wider;
+    border-color: var(--color-border-strong);
+    color: var(--color-text-muted);
   }
 
   .ui-table-row {
-    @apply border-b border-slate-500/10 text-slate-700 dark:text-slate-300;
+    @apply border-b transition-colors duration-150;
+    border-color: var(--color-border);
+    color: var(--color-text-primary);
+  }
+  .ui-table-row:hover {
+    background-color: var(--color-surface-elevated);
   }
 
   .ui-skeleton {
-    @apply animate-pulse rounded-lg bg-slate-200/80 dark:bg-slate-700/70;
+    @apply animate-pulse rounded-lg;
+    background-color: var(--color-surface-elevated);
   }
 
   .ui-spinner {
     @apply inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent;
+  }
+
+  /* Scrollbar styling for the dashboard feel */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-text-muted);
   }
 }

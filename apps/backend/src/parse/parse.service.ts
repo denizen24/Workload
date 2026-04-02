@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 import { plainToInstance } from "class-transformer";
 import { validateSync } from "class-validator";
 import * as XLSX from "xlsx";
@@ -13,10 +13,9 @@ import {
   parsePeriod,
   quarterBounds,
   quarterKey,
+  SECONDS_PER_DAY,
   toIsoDate
 } from "./parse.utils";
-
-const SecondsInDay = 28800;
 
 const WorkloadSchema = z.object({
   assignees: z.array(
@@ -69,15 +68,22 @@ type RawIssue = {
 
 @Injectable()
 export class ParseService {
+  private readonly logger = new Logger(ParseService.name);
+
   parseWorkbook(buffer: Buffer) {
-    const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
+    let workbook: XLSX.WorkBook;
+    try {
+      workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
+    } catch {
+      throw new BadRequestException("Не удалось прочитать файл. Убедитесь, что это корректный .xlsx/.xls файл.");
+    }
     const sheet =
       workbook.Sheets["issues"] ??
       workbook.Sheets["Issues"] ??
       workbook.Sheets[workbook.SheetNames[0]];
 
     if (!sheet) {
-      throw new Error("Sheet 'issues' not found");
+      throw new BadRequestException("Лист 'issues' не найден в файле");
     }
 
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true });
@@ -219,7 +225,7 @@ export class ParseService {
         taskTypesMap.set(issue.issueId, issue.type || null);
       }
       // Сохраняем оценку (в днях) — берём максимум из полей «оценка» и «общая оценка»
-      const estimateDays = issue.estimateSeconds / SecondsInDay;
+      const estimateDays = issue.estimateSeconds / SECONDS_PER_DAY;
       const existing = taskEstimatesMap.get(issue.issueId);
       if (existing === undefined || estimateDays > existing) {
         taskEstimatesMap.set(issue.issueId, estimateDays);
@@ -228,9 +234,9 @@ export class ParseService {
       const days = eachDay(issue.periodStart, issue.periodEnd);
       if (!days.length) continue;
 
-      const baseLoadDays = issue.estimateSeconds / SecondsInDay;
-      const qaDays = (issue.qaSeconds ?? 0) / SecondsInDay;
-      const spDays = (issue.spSeconds ?? 0) / SecondsInDay;
+      const baseLoadDays = issue.estimateSeconds / SECONDS_PER_DAY;
+      const qaDays = (issue.qaSeconds ?? 0) / SECONDS_PER_DAY;
+      const spDays = (issue.spSeconds ?? 0) / SECONDS_PER_DAY;
       const totalLoad = baseLoadDays + qaDays + spDays;
       const perDayLoad = totalLoad / days.length;
       const perDayQa = qaDays / days.length;
@@ -313,6 +319,7 @@ export class ParseService {
     const taskTypes = Object.fromEntries(taskTypesMap);
     const taskEstimates = Object.fromEntries(taskEstimatesMap);
 
+    this.logger.log(`Parsed ${issues.length} issues for ${assignees.length} assignees`);
     return this.validateResponse({ assignees, releases, taskTitles, taskTypes, taskEstimates });
   }
 
@@ -321,7 +328,7 @@ export class ParseService {
     const dto = plainToInstance(WorkloadResponseDto, payload);
     const errors = validateSync(dto, { whitelist: true });
     if (errors.length) {
-      throw new Error("Workload response validation failed");
+      throw new BadRequestException("Ошибка валидации данных рабочей нагрузки");
     }
     return payload as WorkloadResponseDto;
   }

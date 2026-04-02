@@ -1,5 +1,5 @@
 import { endOfWeek, format, parseISO, startOfWeek } from "date-fns";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Assignee, CustomTask, DayLoad, Sprint, WorkloadResponse } from "../types";
 import {
@@ -84,25 +84,27 @@ export function GanttBoard({
     (startSprintId && sortedSprints.find((sprint) => sprint.id === startSprintId)) ||
     sortedSprints[0];
   const dataRange = getDateRange(data);
-  const range =
-    sortedSprints.length > 0
-      ? {
-          start: startOfWeek(
-            startSprint?.startDate ?? sortedSprints[0].startDate,
-            { weekStartsOn: 1 }
-          ),
-          end: endOfWeek(sortedSprints[sortedSprints.length - 1].endDate, {
-            weekStartsOn: 1
-          })
-        }
-      : {
-          start: startOfWeek(new Date(new Date().getFullYear(), 0, 1), {
-            weekStartsOn: 1
-          }),
-          end: endOfWeek(dataRange?.end ?? new Date(new Date().getFullYear(), 11, 31), {
-            weekStartsOn: 1
-          })
-        };
+  const range = (() => {
+    const sprintStart = startSprint?.startDate ?? sortedSprints[0]?.startDate;
+    const sprintEnd = sortedSprints.length > 0
+      ? sortedSprints[sortedSprints.length - 1].endDate
+      : null;
+
+    // When sprints are defined, use sprint boundaries for the calendar range.
+    // Task bars are already clamped to the sprint start in buildTaskRanges(),
+    // so there is no need to extend the calendar to accommodate old task dates.
+    const earliest = sprintStart
+      ? sprintStart
+      : dataRange?.start ?? new Date(new Date().getFullYear(), 0, 1);
+    const latest = sprintEnd
+      ? new Date(Math.max(sprintEnd.getTime(), dataRange?.end?.getTime() ?? 0))
+      : dataRange?.end ?? new Date(new Date().getFullYear(), 11, 31);
+
+    return {
+      start: startOfWeek(earliest, { weekStartsOn: 1 }),
+      end: endOfWeek(latest, { weekStartsOn: 1 })
+    };
+  })();
   const timeline = useMemo(() => {
     if (!range) return null;
     return buildTimeline(range.start, range.end);
@@ -161,8 +163,14 @@ export function GanttBoard({
 
   const totalWidth = NAME_COLUMN_WIDTH + dayMeta.totalWidth;
 
-  const dayIndex = new Map(days.map((day, index) => [format(day, "yyyy-MM-dd"), index]));
-  const workDayIndex = new Map(workDays.map((day, index) => [format(day, "yyyy-MM-dd"), index]));
+  const dayIndex = useMemo(
+    () => new Map(days.map((day, index) => [format(day, "yyyy-MM-dd"), index])),
+    [days]
+  );
+  const workDayIndex = useMemo(
+    () => new Map(workDays.map((day, index) => [format(day, "yyyy-MM-dd"), index])),
+    [workDays]
+  );
 
   const buildTaskRanges = (assignee: Assignee) => {
     const dayMap = collectDays(assignee);
@@ -195,6 +203,11 @@ export function GanttBoard({
       });
     });
 
+    // If a sprint is defined, clamp task start dates so they begin no earlier
+    // than the start of the first visible sprint. This prevents tasks with
+    // Period dates far in the past from floating off-screen to the left.
+    const earliestSprintStart = startSprint?.startDate ?? sortedSprints[0]?.startDate;
+
     const baseTasks = Array.from(taskMap.entries()).map(([taskId, payload]) => {
       const title = data.taskTitles?.[taskId] || null;
       const type = data.taskTypes?.[taskId] || null;
@@ -203,12 +216,16 @@ export function GanttBoard({
         estimateDays != null && estimateDays > 0
           ? Math.max(1, Math.ceil(estimateDays))
           : Math.max(1, payload.dayCount);
+      const taskStart =
+        earliestSprintStart && payload.start < earliestSprintStart
+          ? earliestSprintStart
+          : payload.start;
       return {
         id: taskId,
         label: taskId,
         title: title,
         type: type,
-        start: payload.start,
+        start: taskStart,
         load: payload.load,
         widthDays
       };
@@ -232,7 +249,11 @@ export function GanttBoard({
     startX: number;
     startOffset: number;
   }>({ taskId: null, startX: 0, startOffset: 0 });
+  const dragStateRef = useRef(dragState);
+  dragStateRef.current = dragState;
   const [dragOffsets, setDragOffsets] = useState<Record<string, number>>({});
+  const dragOffsetsRef = useRef(dragOffsets);
+  dragOffsetsRef.current = dragOffsets;
   const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
 
   const rowLayout = useMemo(() => {
@@ -243,7 +264,7 @@ export function GanttBoard({
       const height = Math.max(ROW_HEIGHT, ROW_PADDING * 2 + tasks.length * STACK_GAP);
       return { assignee, tasks, height };
     });
-  }, [data, customTasks]);
+  }, [data, customTasks, sortedSprints, startSprintId]);
 
   const rowOffsets = useMemo(() => {
     let acc = 0;
@@ -276,39 +297,33 @@ export function GanttBoard({
     return meta;
   }, [dayIndex, rowLayout]);
 
+  const taskPlacementMetaRef = useRef(taskPlacementMeta);
+  taskPlacementMetaRef.current = taskPlacementMeta;
+  const taskStartDatesRef = useRef(taskStartDates);
+  taskStartDatesRef.current = taskStartDates;
+  const onTaskStartDatesChangeRef = useRef(onTaskStartDatesChange);
+  onTaskStartDatesChangeRef.current = onTaskStartDatesChange;
+
   useEffect(() => {
     if (!dragState.taskId) return;
     const handleMove = (event: PointerEvent) => {
-      const deltaX = event.clientX - dragState.startX;
+      const ds = dragStateRef.current;
+      const deltaX = event.clientX - ds.startX;
       const deltaDays = Math.round(deltaX / DAY_WIDTH);
       setDragOffsets((prev) => ({
         ...prev,
-        [dragState.taskId as string]: dragState.startOffset + deltaDays
+        [ds.taskId as string]: ds.startOffset + deltaDays
       }));
     };
     const handleUp = () => {
-      const taskId = dragState.taskId;
-      if (taskId && onTaskStartDatesChange) {
-        const placement = taskPlacementMeta.get(taskId);
+      const ds = dragStateRef.current;
+      const taskId = ds.taskId;
+      const onChange = onTaskStartDatesChangeRef.current;
+      if (taskId && onChange) {
+        const placement = taskPlacementMetaRef.current.get(taskId);
         if (placement) {
-          const computeEndIndexLocal = (startIndex: number, workdayCount: number) => {
-            let remaining = Math.max(1, Math.round(workdayCount));
-            let index = startIndex;
-            while (index < days.length && remaining > 0) {
-              const day = days[index];
-              const isWeekend = day.getDay() === 0 || day.getDay() === 6;
-              const isHol = holidaysSet.has(format(day, "yyyy-MM-dd"));
-              if (!isWeekend && !isHol) {
-                remaining -= 1;
-              }
-              if (remaining > 0) {
-                index += 1;
-              }
-            }
-            return Math.min(days.length - 1, index);
-          };
-          const rawOffset = dragOffsets[taskId] ?? 0;
-          const endIndex = computeEndIndexLocal(placement.baseStartIndex, placement.widthDays);
+          const rawOffset = dragOffsetsRef.current[taskId] ?? 0;
+          const endIndex = computeEndIndex(placement.baseStartIndex, placement.widthDays);
           const maxOffset = days.length - 1 - endIndex;
           const minOffset = -placement.baseStartIndex;
           const offset = clamp(rawOffset, minOffset, maxOffset);
@@ -319,8 +334,8 @@ export function GanttBoard({
           );
           const adjustedDay = days[adjustedStartIndex];
           if (adjustedDay) {
-            onTaskStartDatesChange({
-              ...taskStartDates,
+            onChange({
+              ...taskStartDatesRef.current,
               [taskId]: format(adjustedDay, "yyyy-MM-dd")
             });
           }
@@ -334,15 +349,7 @@ export function GanttBoard({
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
     };
-  }, [
-    days,
-    dragOffsets,
-    dragState,
-    holidaysSet,
-    onTaskStartDatesChange,
-    taskPlacementMeta,
-    taskStartDates
-  ]);
+  }, [days, dragState.taskId, holidaysSet]);
 
   const boardColors = boardPalette[theme];
 
@@ -390,11 +397,71 @@ export function GanttBoard({
     return Math.min(days.length - 1, index);
   };
 
+  const headerElements = useMemo(() => (
+    <g>
+      {sortedSprints.map((sprint) => {
+        const si = dayIndex.get(format(sprint.startDate, "yyyy-MM-dd")) ?? 0;
+        const ei = dayIndex.get(format(sprint.endDate, "yyyy-MM-dd")) ?? 0;
+        const x = xForIndex(si);
+        const w = endXForIndex(ei) - x;
+        return (
+          <g key={sprint.id}>
+            <rect x={x} y={0} width={w} height={SPRINT_BAR_HEIGHT} fill={boardColors.sprintFill} opacity={0.5} rx={8} />
+            <text x={x + 6} y={16} fontSize={11} fill={boardColors.headerText}>{sprint.name || "Спринт"}</text>
+          </g>
+        );
+      })}
+      {months.map((month) => {
+        const si = dayIndex.get(format(month.start, "yyyy-MM-dd")) ?? 0;
+        const ei = dayIndex.get(format(month.end, "yyyy-MM-dd")) ?? si;
+        const x = xForIndex(si);
+        const w = endXForIndex(ei) - x;
+        return (
+          <g key={month.label}>
+            <rect x={x} y={SPRINT_BAR_HEIGHT + 2} width={w} height={MONTH_BAR_HEIGHT} fill={boardColors.monthFill} opacity={0.12} />
+            <text x={x + 8} y={SPRINT_BAR_HEIGHT + 2 + 15} fontSize={12} fill={boardColors.metaText}>{month.label}</text>
+          </g>
+        );
+      })}
+      {dayMeta.meta.map(({ day, x }) => (
+        <text key={`day-${day.toISOString()}`} x={NAME_COLUMN_WIDTH + x + 6} y={HEADER_HEIGHT - 6} fontSize={9} fill={boardColors.metaText}>
+          {format(day, "d")}
+        </text>
+      ))}
+      {weekendPositions.map(({ x, day }) => (
+        <text key={`weekend-text-${day.toISOString()}`} x={NAME_COLUMN_WIDTH + x + 8} y={HEADER_HEIGHT - 6} fontSize={9} fill={boardColors.weekendText} opacity={0.7}>
+          {format(day, "d")}
+        </text>
+      ))}
+    </g>
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [sortedSprints, months, dayMeta.meta, weekendPositions, dayIndex, boardColors]);
+
+  const gridElements = useMemo(() => (
+    <>
+      {releaseDayMeta.map(({ day, x }) => (
+        <rect key={`release-bg-${day.toISOString()}`} x={NAME_COLUMN_WIDTH + x} y={HEADER_HEIGHT - 8} width={DAY_WIDTH} height={totalHeight - (HEADER_HEIGHT - 8)} fill={boardColors.releaseBg} opacity={0.4} />
+      ))}
+      {dayMeta.meta.map(({ day, x }) => (
+        <line key={day.toISOString()} x1={NAME_COLUMN_WIDTH + x} x2={NAME_COLUMN_WIDTH + x} y1={HEADER_HEIGHT - 8} y2={totalHeight} stroke={boardColors.gridStroke} />
+      ))}
+      {releaseDayMeta.map(({ day, x }) => (
+        <line key={`release-line-${day.toISOString()}`} x1={NAME_COLUMN_WIDTH + x + DAY_WIDTH / 2} x2={NAME_COLUMN_WIDTH + x + DAY_WIDTH / 2} y1={HEADER_HEIGHT - 8} y2={totalHeight} stroke={boardColors.releaseLine} strokeWidth={2} opacity={0.9} />
+      ))}
+      {weekendPositions.map(({ x, day }) => (
+        <line key={`weekend-line-${day.toISOString()}`} x1={NAME_COLUMN_WIDTH + x} x2={NAME_COLUMN_WIDTH + x} y1={HEADER_HEIGHT - 8} y2={totalHeight} stroke={boardColors.weekendLine} strokeWidth={1.5} strokeDasharray="4 4" opacity={0.7} />
+      ))}
+      {holidayPositions.map(({ x, day }) => (
+        <line key={`holiday-line-${day.toISOString()}`} x1={NAME_COLUMN_WIDTH + x} x2={NAME_COLUMN_WIDTH + x} y1={HEADER_HEIGHT - 8} y2={totalHeight} stroke={boardColors.holidayLine} strokeWidth={1} strokeDasharray="2 2" opacity={0.5} />
+      ))}
+    </>
+  ), [releaseDayMeta, dayMeta.meta, weekendPositions, holidayPositions, totalHeight, boardColors]);
+
   return (
-    <div className="relative w-full overflow-auto rounded-2xl border border-slate-700/20 bg-white/70 p-4 shadow-sm dark:bg-slate-900/60">
+    <div className="relative w-full overflow-auto rounded-card border border-slate-700/20 bg-white/70 p-4 shadow-soft dark:bg-slate-900/60">
       <div className="pointer-events-none absolute left-0 top-0 z-20 w-[180px]">
         <div
-          className="sticky left-0 top-0 h-full bg-white/90 backdrop-blur-sm dark:bg-slate-900/90"
+          className="sticky left-0 top-0 h-full bg-surface-card backdrop-blur-sm dark:bg-surface-card"
           style={{ paddingTop: HEADER_HEIGHT }}
         >
           {rowOffsets.map((row) => (
@@ -413,154 +480,10 @@ export function GanttBoard({
       <svg width={totalWidth} height={totalHeight} className="min-w-full">
         <rect width={totalWidth} height={totalHeight} fill="transparent" />
 
-        <g>
-          {sortedSprints.map((sprint) => {
-            const startIndex =
-              dayIndex.get(format(sprint.startDate, "yyyy-MM-dd")) ?? 0;
-            const endIndex =
-              dayIndex.get(format(sprint.endDate, "yyyy-MM-dd")) ?? 0;
-            const x = xForIndex(startIndex);
-            const width = endXForIndex(endIndex) - x;
-            return (
-              <g key={sprint.id}>
-                <rect
-                  x={x}
-                  y={0}
-                  width={width}
-                  height={SPRINT_BAR_HEIGHT}
-                  fill={boardColors.sprintFill}
-                  opacity={0.35}
-                  rx={6}
-                />
-                <text x={x + 6} y={16} fontSize={11} fill={boardColors.headerText}>
-                  {sprint.name || "Спринт"}
-                </text>
-              </g>
-            );
-          })}
-
-          {months.map((month) => {
-            const startIndex = dayIndex.get(format(month.start, "yyyy-MM-dd")) ?? 0;
-            const endIndex = dayIndex.get(format(month.end, "yyyy-MM-dd")) ?? startIndex;
-            const x = xForIndex(startIndex);
-            const width = endXForIndex(endIndex) - x;
-            return (
-              <g key={month.label}>
-                <rect
-                  x={x}
-                  y={SPRINT_BAR_HEIGHT + 2}
-                  width={width}
-                  height={MONTH_BAR_HEIGHT}
-                  fill={boardColors.monthFill}
-                  opacity={0.12}
-                />
-                <text
-                  x={x + 8}
-                  y={SPRINT_BAR_HEIGHT + 2 + 15}
-                  fontSize={12}
-                  fill={boardColors.metaText}
-                >
-                  {month.label}
-                </text>
-              </g>
-            );
-          })}
-
-
-          {dayMeta.meta.map(({ day, x }) => {
-            return (
-              <text
-                key={`day-${day.toISOString()}`}
-                x={NAME_COLUMN_WIDTH + x + 6}
-                y={HEADER_HEIGHT - 6}
-                fontSize={9}
-                fill={boardColors.metaText}
-              >
-                {format(day, "d")}
-              </text>
-            );
-          })}
-          {weekendPositions.map(({ x, day }) => {
-            const lineMidY = (HEADER_HEIGHT - 8 + totalHeight) / 2;
-            const textX = NAME_COLUMN_WIDTH + x + 8;
-            return (
-              <text
-                key={`weekend-text-${day.toISOString()}`}
-                x={textX}
-                y={lineMidY}
-                fontSize={10}
-                fill={boardColors.weekendText}
-                opacity={0.7}
-                transform={`rotate(-90 ${textX} ${lineMidY})`}
-                textAnchor="middle"
-                dominantBaseline="middle"
-              >
-                ***выходные***
-              </text>
-            );
-          })}
-        </g>
+        {headerElements}
 
         <g transform={`translate(${offsetX}, 0)`}>
-          {releaseDayMeta.map(({ day, x }) => (
-            <rect
-              key={`release-bg-${day.toISOString()}`}
-              x={NAME_COLUMN_WIDTH + x}
-              y={HEADER_HEIGHT - 8}
-              width={DAY_WIDTH}
-              height={totalHeight - (HEADER_HEIGHT - 8)}
-              fill={boardColors.releaseBg}
-              opacity={0.4}
-            />
-          ))}
-          {dayMeta.meta.map(({ day, x }) => (
-            <line
-              key={day.toISOString()}
-              x1={NAME_COLUMN_WIDTH + x}
-              x2={NAME_COLUMN_WIDTH + x}
-              y1={HEADER_HEIGHT - 8}
-              y2={totalHeight}
-              stroke={boardColors.gridStroke}
-            />
-          ))}
-          {releaseDayMeta.map(({ day, x }) => (
-            <line
-              key={`release-line-${day.toISOString()}`}
-              x1={NAME_COLUMN_WIDTH + x + DAY_WIDTH / 2}
-              x2={NAME_COLUMN_WIDTH + x + DAY_WIDTH / 2}
-              y1={HEADER_HEIGHT - 8}
-              y2={totalHeight}
-              stroke={boardColors.releaseLine}
-              strokeWidth={2}
-              opacity={0.9}
-            />
-          ))}
-          {weekendPositions.map(({ x, day }) => (
-            <line
-              key={`weekend-line-${day.toISOString()}`}
-              x1={NAME_COLUMN_WIDTH + x}
-              x2={NAME_COLUMN_WIDTH + x}
-              y1={HEADER_HEIGHT - 8}
-              y2={totalHeight}
-              stroke={boardColors.weekendLine}
-              strokeWidth={1.5}
-              strokeDasharray="4 4"
-              opacity={0.7}
-            />
-          ))}
-          {holidayPositions.map(({ x, day }) => (
-            <line
-              key={`holiday-line-${day.toISOString()}`}
-              x1={NAME_COLUMN_WIDTH + x}
-              x2={NAME_COLUMN_WIDTH + x}
-              y1={HEADER_HEIGHT - 8}
-              y2={totalHeight}
-              stroke={boardColors.holidayLine}
-              strokeWidth={1}
-              strokeDasharray="2 2"
-              opacity={0.5}
-            />
-          ))}
+          {gridElements}
 
           {rowOffsets.map((row) => {
             const y = HEADER_HEIGHT + row.offset;
@@ -630,7 +553,7 @@ export function GanttBoard({
                         y={barY}
                         width={width}
                         height={barHeight}
-                        rx={4}
+                        rx={6}
                         fill={getTaskColor(taskType)}
                         opacity={isActiveDrag ? 1 : isHovered ? 0.95 : 0.85}
                         stroke={getAssigneeNoteColor(row.assignee.name)}
@@ -706,31 +629,38 @@ export function GanttBoard({
         </g>
       </svg>
 
-      <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-slate-500/20 pt-4 text-xs text-slate-600 dark:text-slate-400">
-        <span className="font-medium text-slate-700 dark:text-slate-300">Легенда:</span>
+      <div className="mt-4 flex items-center gap-6 border-t border-slate-500/10 pt-3 text-xs text-slate-600 dark:text-slate-400">
         <span className="flex items-center gap-1.5">
           <span
-            className="inline-block h-3 w-4 rounded"
+            className="inline-block h-2.5 w-2.5 rounded-full"
+            style={{ backgroundColor: taskColors.duty }}
+            aria-hidden
+          />
+          <span className="font-mono">DUTY</span>
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span
+            className="inline-block h-2.5 w-2.5 rounded-full"
             style={{ backgroundColor: taskColors.featureOrTech }}
             aria-hidden
           />
-          FEATURE / TECH TASK
+          <span className="font-mono">FEATURE / TECH</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span
-            className="inline-block h-3 w-4 rounded"
+            className="inline-block h-2.5 w-2.5 rounded-full"
             style={{ backgroundColor: taskColors.bug }}
             aria-hidden
           />
-          BUG
+          <span className="font-mono">BUG</span>
         </span>
         <span className="flex items-center gap-1.5">
           <span
-            className="inline-block h-3 w-4 rounded"
+            className="inline-block h-2.5 w-2.5 rounded-full"
             style={{ backgroundColor: taskColors.task }}
             aria-hidden
           />
-          TASK
+          <span className="font-mono">TASK</span>
         </span>
       </div>
     </div>

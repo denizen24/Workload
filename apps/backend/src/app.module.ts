@@ -5,7 +5,6 @@ import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { APP_GUARD } from "@nestjs/core";
 
 import { AuthModule } from "./auth/auth.module";
-import { RedisModule } from "./common/redis/redis.module";
 import { validateEnv } from "./config/env.validation";
 import { FileModule } from "./file/file.module";
 import { HealthController } from "./health/health.controller";
@@ -26,7 +25,6 @@ import { SnapshotsModule } from "./snapshots/snapshots.module";
       })
     }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
-    RedisModule,
     FileModule,
     ParseModule,
     AuthModule,

@@ -14,15 +14,13 @@
       "standardFlowEnabled": true,
       "redirectUris": [
         "http://localhost:5173/*",
-        "http://localhost:8080/*"
-      ],
-      "postLogoutRedirectUris": [
-        "http://localhost:5173/*",
-        "http://localhost:8080/*"
+        "http://localhost:8080/*",
+        "https://workload.denizen24.cc/*"
       ],
       "webOrigins": [
         "http://localhost:5173",
-        "http://localhost:8080"
+        "http://localhost:8080",
+        "https://workload.denizen24.cc"
       ],
       "protocol": "openid-connect"
     }

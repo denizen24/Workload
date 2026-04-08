@@ -9,6 +9,11 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:3000",
         changeOrigin: true
+      },
+      "/keycloak": {
+        target: "http://localhost:8180",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/keycloak/, "")
       }
     }
   }

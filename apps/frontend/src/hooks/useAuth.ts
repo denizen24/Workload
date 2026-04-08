@@ -1,83 +1,42 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import {
-  AuthUser,
-  clearAuthTokens,
-  isAuthenticated,
-  login,
-  logout,
-  me,
-  register,
-  saveAuthTokens
-} from "../api/auth";
+import { AuthUser, getAuthUser, logoutRedirect } from "../api/auth";
+import keycloak from "../keycloak";
 
 export function useAuth(setError: (err: string | null) => void) {
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
-  const [authEmail, setAuthEmail] = useState("");
-  const [authPassword, setAuthPassword] = useState("");
-  const [authSecret, setAuthSecret] = useState("");
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [isAuthBusy, setIsAuthBusy] = useState(false);
+  const [isKeycloakReady, setIsKeycloakReady] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated()) return;
-    me()
-      .then((user) => setCurrentUser(user))
-      .catch(() => {
-        clearAuthTokens();
-        setCurrentUser(null);
+    keycloak
+      .init({ onLoad: "check-sso", silentCheckSsoRedirectUri: undefined })
+      .then((authenticated) => {
+        setIsKeycloakReady(true);
+        if (authenticated) {
+          setCurrentUser(getAuthUser());
+        }
+      })
+      .catch((err) => {
+        setIsKeycloakReady(true);
+        setError("Keycloak initialization failed");
+        console.error("Keycloak init error:", err);
       });
+  }, [setError]);
+
+  const handleLogin = useCallback(() => {
+    keycloak.login();
   }, []);
 
-  const handleAuthSubmit = async () => {
-    setIsAuthBusy(true);
+  const handleLogout = useCallback(async () => {
     setError(null);
-    try {
-      const trimmedEmail = authEmail.trim().toLowerCase();
-      const response =
-        authMode === "register"
-          ? await register({
-              email: trimmedEmail,
-              password: authPassword,
-              registrationSecret: authSecret || undefined
-            })
-          : await login({
-              email: trimmedEmail,
-              password: authPassword
-            });
-      saveAuthTokens(response);
-      setCurrentUser(response.user);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка авторизации");
-    } finally {
-      setIsAuthBusy(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    setError(null);
-    try {
-      await logout();
-    } catch {
-      clearAuthTokens();
-    } finally {
-      setCurrentUser(null);
-    }
-  };
+    setCurrentUser(null);
+    logoutRedirect();
+  }, [setError]);
 
   return {
-    authMode,
-    setAuthMode,
-    authEmail,
-    setAuthEmail,
-    authPassword,
-    setAuthPassword,
-    authSecret,
-    setAuthSecret,
     currentUser,
-    setCurrentUser,
-    isAuthBusy,
-    handleAuthSubmit,
+    isKeycloakReady,
+    handleLogin,
     handleLogout
   };
 }

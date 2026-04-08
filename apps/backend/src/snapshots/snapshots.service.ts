@@ -4,7 +4,7 @@ import {
   NotFoundException
 } from "@nestjs/common";
 import { InjectModel } from "@nestjs/mongoose";
-import { Model, Types } from "mongoose";
+import { Model } from "mongoose";
 
 import { CreateSnapshotDto } from "./dto/create-snapshot.dto";
 import { UpdateSnapshotDto } from "./dto/update-snapshot.dto";
@@ -20,9 +20,7 @@ export class SnapshotsService {
   ) {}
 
   async findAll(userId: string, sprintId?: string, limit = 50, offset = 0) {
-    const filter: Record<string, unknown> = {
-      userId: new Types.ObjectId(userId)
-    };
+    const filter: Record<string, unknown> = { userId };
     if (sprintId) {
       filter.sprintId = sprintId;
     }
@@ -43,17 +41,14 @@ export class SnapshotsService {
   async create(userId: string, dto: CreateSnapshotDto) {
     if (dto.isActive) {
       await this.snapshotModel.updateMany(
-        {
-          userId: new Types.ObjectId(userId),
-          sprintId: dto.sprintId
-        },
+        { userId, sprintId: dto.sprintId },
         { $set: { isActive: false } }
       );
     }
 
     this.logger.log(`Creating snapshot "${dto.name}" for sprint ${dto.sprintId}`);
     return this.snapshotModel.create({
-      userId: new Types.ObjectId(userId),
+      userId,
       sprintId: dto.sprintId,
       name: dto.name,
       isActive: Boolean(dto.isActive),
@@ -64,10 +59,7 @@ export class SnapshotsService {
   async activate(userId: string, snapshotId: string) {
     const snapshot = await this.findOwnedSnapshot(userId, snapshotId);
     await this.snapshotModel.updateMany(
-      {
-        userId: new Types.ObjectId(userId),
-        sprintId: snapshot.sprintId
-      },
+      { userId, sprintId: snapshot.sprintId },
       { $set: { isActive: false } }
     );
 
@@ -99,10 +91,9 @@ export class SnapshotsService {
 
   private async findOwnedSnapshot(userId: string, snapshotId: string) {
     const snapshot = await this.snapshotModel
-      .findOne({
-        _id: new Types.ObjectId(snapshotId),
-        userId: new Types.ObjectId(userId)
-      })
+      .findById(snapshotId)
+      .where("userId")
+      .equals(userId)
       .exec();
 
     if (!snapshot) {

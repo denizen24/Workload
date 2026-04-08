@@ -109,8 +109,8 @@ export default function App() {
   });
 
   const handleLogout = useCallback(async () => {
-    await auth.handleLogout();
     snapshotsHook.resetSnapshots();
+    await auth.handleLogout();
   }, [auth, snapshotsHook]);
 
   const handleUpload = useCallback(async (file: File) => {
@@ -297,17 +297,9 @@ export default function App() {
         )}
 
         <AuthSection
-          authMode={auth.authMode}
-          setAuthMode={auth.setAuthMode}
-          authEmail={auth.authEmail}
-          setAuthEmail={auth.setAuthEmail}
-          authPassword={auth.authPassword}
-          setAuthPassword={auth.setAuthPassword}
-          authSecret={auth.authSecret}
-          setAuthSecret={auth.setAuthSecret}
           currentUser={auth.currentUser}
-          isAuthBusy={auth.isAuthBusy}
-          handleAuthSubmit={auth.handleAuthSubmit}
+          isKeycloakReady={auth.isKeycloakReady}
+          handleLogin={auth.handleLogin}
           handleLogout={handleLogout}
         />
 
